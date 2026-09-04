@@ -1,0 +1,19 @@
+{
+  "name": "bearings-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bearings MCP monorepo — shared Zod schemas for server and React inspector",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm --filter @bearings/shared --filter @bearings/server run test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.8.2"
+  }
+}

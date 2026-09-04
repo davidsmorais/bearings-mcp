@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs & caches
+*.log
+.pnpm-store/
+.turbo/
+*.tsbuildinfo
+.code-review-graph/
+
+# Test / coverage
+coverage/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Vite
+packages/web/dist/
+
+
+# AI
+graphify-out/
