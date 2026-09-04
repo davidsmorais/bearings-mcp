@@ -2,7 +2,14 @@
 
 Guidance for AI-assisted development on **Bearings**, an MCP server exposing destination and neighbourhood intelligence tools backed by public HTTP APIs.
 
-This file is tool-agnostic. Cursor, Claude Code, OpenCode and Antigravity all read it; per-tool specifics are at the bottom.
+This file is tool-agnostic and applies repo-wide. Cursor, Claude Code, OpenCode and Antigravity all read it. Each package also has its own `AGENTS.md` with conventions specific to that package — read this file first, then the one for whichever package you're working in.
+
+```
+/AGENTS.md                  ← you are here: cross-cutting rules, all packages
+/packages/server/AGENTS.md  ← backend-specific
+/packages/shared/AGENTS.md  ← schema/type-specific
+/packages/web/AGENTS.md     ← inspector-specific
+```
 
 > **Note for readers:** `rtk`, `graphify` and `code-review-graph` referenced below are the author's local development tools, not dependencies of this project. `pnpm install && pnpm build` is the complete setup. Nothing in this repo requires them.
 
@@ -64,6 +71,14 @@ Upstreams: Nominatim (geocoding), Open-Meteo (forecast), Nager.Date (holidays), 
 
 The server runs over two transports from one registry: stdio for MCP clients, Streamable HTTP for the React inspector in `packages/web`.
 
+Package split:
+
+| Package | Purpose |
+|---|---|
+| `packages/server` | MCP registry, transports, tool handlers, upstream clients, analysis logic |
+| `packages/shared` | Zod schemas, domain types, error taxonomy — imported by both server and web |
+| `packages/web` | Development inspector: schema-driven forms, response viewer, cost tracking |
+
 ---
 
 ## ❓ Before Starting a Plan
@@ -78,7 +93,7 @@ Skip the questions only when the task is fully unambiguous (fix this exact typo,
 
 ## 🏛️ Architecture Invariants
 
-These are not style preferences. Breaking one means the change is wrong, regardless of whether tests pass.
+These apply across every package. Breaking one means the change is wrong, regardless of whether tests pass. Package-specific rules live in that package's `AGENTS.md`; these are the ones that hold everywhere.
 
 **1. The registry is the only place tools are defined.**
 `packages/server/src/registry.ts`. Transports read from it. Neither transport may hold its own tool list, and no tool may be registered from anywhere else. Adding a tool must require zero changes to either transport file.
@@ -119,63 +134,9 @@ Widening a bound, dropping a required field, relaxing an enum, or turning a stri
 
 ---
 
-## ⚙️ Backend Conventions
-
-### Structure
-
-```
-packages/server/src/
-  registry.ts          tool definitions
-  tools/               one file per tool handler
-  upstream/            one client per API
-  analysis/            derived logic (density, classification)
-  http/                client core: cache, limiter, retry
-packages/shared/src/
-  schemas/             Zod input schemas
-  types/               domain types
-  errors.ts            ToolError union
-```
-
-### Rules
-
-- **Async/await only.** No `.then()` chains.
-- **Fan-out uses `Promise.allSettled`, never `Promise.all`.** A partial result beats a total failure. Every composed tool reports which upstreams succeeded via a `sources` block.
-- **Upstream shapes never leak past `upstream/`.** Each client normalises into a domain type at its boundary. If a Geoapify field name appears in `analysis/` or a tool handler, the normalisation layer is incomplete.
-- **Cache TTLs are per-host and justified.** Geocoding is effectively static; forecasts are not. The reasoning goes in `MEMORY.md`.
-- **Empty is not an error.** A rural coordinate with no POIs returns a valid empty profile. Reserve `NOT_FOUND` for genuine lookup failure.
-- **Every tool accepts `detail: "brief" | "full"`,** defaulting to `brief`. Response shaping happens once at the registry level, not in each handler.
-- **Bound every input that costs money or time.** `radius` and `limit` are capped in the Zod schema, not merely documented. Geoapify bills per 20 places returned, so `limit` is a cost lever.
-
----
-
-## 🎨 Frontend Conventions
-
-`packages/web` is a **development inspector**, not a product. It exists so tool calls and structured responses can be examined, and so the schema-as-source-of-truth property is visible rather than claimed.
-
-### Rules
-
-- **No hand-written forms.** Inputs render from the tool's Zod schema via `zod-to-json-schema` and a thin renderer. Adding a tool must surface its form with zero UI changes. If you find yourself writing a `<ResolveDestinationForm>`, stop.
-- **Validate client-side with the same schema the server uses.** The user should see the exact error an agent would receive.
-- **No charting library.** Density bars are divs. Three bars do not justify a dependency.
-- **No component library.** Tailwind only. A light custom layer keeps the surface count low.
-- **No animation.** This is devtools chrome.
-- **Do not let it become a travel app.** The moment it reads as a consumer product, the server becomes the sideshow. Plain naming, minimal styling, functional colour.
-- **Show cost.** Approximate token count and Geoapify credit spend render next to every call. Label the token count approximate; it is not Claude's tokenizer.
-
-### Components
-
-- One component per file. Never nest component definitions.
-- Arrow functions, functional components with hooks only.
-- PascalCase components, camelCase functions.
-- Separate presentational from container components.
-- Aliased imports; no `../` or `./` traversal.
-- **Never** modify a `useEffect` dependency array to satisfy exhaustive-deps. Fix the effect instead.
-
----
-
 ## 🔌 Upstream Quirks
 
-Read this before touching any `upstream/` client. Each of these has bitten a prior session and is not obvious from the API docs alone.
+Read this before touching any `upstream/` client. Each of these has bitten a prior session and is not obvious from the API docs alone. Lives at root, not in `packages/server`, because it's referenced from the README and from `DECISIONS.md` too.
 
 | Upstream | Quirk | Consequence if ignored |
 |---|---|---|
@@ -224,7 +185,7 @@ An agent reporting a task complete without having run all three is reporting inc
 
 ---
 
-## 🚫 Forbidden Practices
+## 🚫 Forbidden Practices (repo-wide)
 
 - Bare `fetch()` to an upstream
 - Duplicating a schema outside `packages/shared`
@@ -232,9 +193,10 @@ An agent reporting a task complete without having run all three is reporting inc
 - Throwing strings or raw errors out of a handler
 - Registering a tool outside the registry
 - Magic numbers in the analysis layer
-- Nested component definitions
-- Updating `useEffect` deps to silence the linter
 - Committing `.env`
+- Loosening a schema without being asked (see Invariant 9)
+
+Package-specific forbidden practices (React nesting, `useEffect` rules, etc.) live in `packages/web/AGENTS.md`.
 
 ---
 
@@ -249,15 +211,11 @@ An agent reporting a task complete without having run all three is reporting inc
 
 ---
 
-## 📝 Code Style
+## 📝 Code Style (repo-wide)
 
 ### Imports & Paths
 - Aliased imports only; avoid `../` and `./`
 - Biome handles sorting
-
-### Functions
-- Arrow function syntax throughout
-- Descriptive, consistent naming
 
 ### Comments
 - Only when logic is genuinely non-obvious
@@ -271,6 +229,8 @@ Two things in this codebase warrant a comment because they are non-obvious const
 // Nominatim blocks clients without a descriptive User-Agent.
 // Geoapify bills 1 credit per 20 places, so limit is a cost lever, not just a page size.
 ```
+
+Language-specific style (function syntax, component rules) lives in each package's `AGENTS.md`.
 
 ---
 
@@ -305,37 +265,158 @@ All four tools read this file. Subagents and skills live in `.claude/` and are s
 | Skills | `.claude/skills/<name>/SKILL.md` | `/` slash commands |
 
 ### Cursor
-Loads `AGENTS.md` as project rules on every Agent chat. Reads `.claude/` paths directly. Cursor-specific rules in `.cursor/rules/*.mdc`. Full MCP support for `code-review-graph`.
+Loads `AGENTS.md` as project rules on every Agent chat, and resolves the nearest `AGENTS.md` to whatever file is open — so a session working in `packages/web` picks up that package's file automatically. Reads `.claude/` paths directly. Cursor-specific rules in `.cursor/rules/*.mdc`. Full MCP support for `code-review-graph`.
 
 ### Claude Code
-Reads `AGENTS.md` and `.claude/` natively. Preferred for multi-file refactors and anything touching the registry or shared schemas, where the blast radius spans packages.
+Reads `AGENTS.md` and `.claude/` natively, resolving nested `AGENTS.md` files the same way. Preferred for multi-file refactors and anything touching the registry or shared schemas, where the blast radius spans packages — in that case it will have read root plus every package file involved.
 
 ### OpenCode
-Reads `AGENTS.md`. Has `code-review-graph` MCP. Use for PR review, QA passes and documentation — the read-heavy work.
+Reads `AGENTS.md`. Has `code-review-graph` MCP. Use for PR review, QA passes and documentation — the read-heavy work. If working across multiple packages, confirm it picked up both the root file and the relevant package file rather than assuming nested resolution happened silently.
 
 ### Antigravity
-Reads `AGENTS.md`. No MCP graph access, so give it explicit file paths rather than expecting it to discover structure. Best for long multi-step agentic tasks where the plan is already clear.
+Reads `AGENTS.md`, but nested-file resolution is less reliable than the other three. No MCP graph access either. Give it explicit paths to the relevant package `AGENTS.md` rather than expecting it to discover structure on its own. Best for long multi-step agentic tasks where the plan and file scope are already clear.
 
 ---
 
-## 🛠️ rtk
 
-Token-optimised CLI proxy. Prefix shell commands:
+<!-- rtk-instructions v2 -->
+# RTK (Rust Token Killer) - Token-Optimized Commands
 
+## Golden Rule
+
+**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
+
+**Important**: Even in command chains with `&&`, use `rtk`:
 ```bash
-rtk git status
-rtk pnpm test
-rtk pnpm lint
+# ❌ Wrong
+git add . && git commit -m "msg" && git push
+
+# ✅ Correct
+rtk git add . && rtk git commit -m "msg" && rtk git push
 ```
 
-Meta commands run directly, no double prefix:
+## RTK Commands by Workflow
 
+### Build & Compile (80-90% savings)
 ```bash
-rtk gain              # savings dashboard
-rtk gain --history    # per-command history
-rtk discover          # find missed opportunities
-rtk proxy <cmd>       # raw run, still tracked
+rtk cargo build         # Cargo build output
+rtk cargo check         # Cargo check output
+rtk cargo clippy        # Clippy warnings grouped by file (80%)
+rtk tsc                 # TypeScript errors grouped by file/code (83%)
+rtk lint                # ESLint/Biome violations grouped (84%)
+rtk prettier --check    # Files needing format only (70%)
+rtk next build          # Next.js build with route metrics (87%)
 ```
+
+### Test (60-99% savings)
+```bash
+rtk cargo test          # Cargo test failures only (90%)
+rtk go test             # Go test failures only (90%)
+rtk jest                # Jest failures only (99.5%)
+rtk vitest              # Vitest failures only (99.5%)
+rtk playwright test     # Playwright failures only (94%)
+rtk pytest              # Python test failures only (90%)
+rtk rake test           # Ruby test failures only (90%)
+rtk rspec               # RSpec test failures only (60%)
+rtk test <cmd>          # Generic test wrapper - failures only
+```
+
+### Git (59-80% savings)
+```bash
+rtk git status          # Compact status
+rtk git log             # Compact log (works with all git flags)
+rtk git diff            # Compact diff (80%)
+rtk git show            # Compact show (80%)
+rtk git add             # Ultra-compact confirmations (59%)
+rtk git commit          # Ultra-compact confirmations (59%)
+rtk git push            # Ultra-compact confirmations
+rtk git pull            # Ultra-compact confirmations
+rtk git branch          # Compact branch list
+rtk git fetch           # Compact fetch
+rtk git stash           # Compact stash
+rtk git worktree        # Compact worktree
+```
+
+Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
+
+### GitHub (26-87% savings)
+```bash
+rtk gh pr view <num>    # Compact PR view (87%)
+rtk gh pr checks        # Compact PR checks (79%)
+rtk gh run list         # Compact workflow runs (82%)
+rtk gh issue list       # Compact issue list (80%)
+rtk gh api              # Compact API responses (26%)
+```
+
+### JavaScript/TypeScript Tooling (70-90% savings)
+```bash
+rtk pnpm list           # Compact dependency tree (70%)
+rtk pnpm outdated       # Compact outdated packages (80%)
+rtk pnpm install        # Compact install output (90%)
+rtk npm run <script>    # Compact npm script output
+rtk npx <cmd>           # Compact npx command output
+rtk prisma              # Prisma without ASCII art (88%)
+```
+
+### Files & Search (60-75% savings)
+```bash
+rtk ls <path>           # Tree format, compact (65%)
+rtk read <file>         # Code reading with filtering (60%)
+rtk grep <pattern>      # Search grouped by file (75%). Format flags (-c, -l, -L, -o, -Z) run raw.
+rtk find <pattern>      # Find grouped by directory (70%)
+```
+
+### Analysis & Debug (70-90% savings)
+```bash
+rtk err <cmd>           # Filter errors only from any command
+rtk log <file>          # Deduplicated logs with counts
+rtk json <file>         # JSON structure without values
+rtk deps                # Dependency overview
+rtk env                 # Environment variables compact
+rtk summary <cmd>       # Smart summary of command output
+rtk diff                # Ultra-compact diffs
+```
+
+### Infrastructure (85% savings)
+```bash
+rtk docker ps           # Compact container list
+rtk docker images       # Compact image list
+rtk docker logs <c>     # Deduplicated logs
+rtk kubectl get         # Compact resource list
+rtk kubectl logs        # Deduplicated pod logs
+```
+
+### Network (65-70% savings)
+```bash
+rtk curl <url>          # Compact HTTP responses (70%)
+rtk wget <url>          # Compact download output (65%)
+```
+
+### Meta Commands
+```bash
+rtk gain                # View token savings statistics
+rtk gain --history      # View command history with savings
+rtk discover            # Analyze Claude Code sessions for missed RTK usage
+rtk proxy <cmd>         # Run command without filtering (for debugging)
+rtk init                # Add RTK instructions to CLAUDE.md
+rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
+```
+
+## Token Savings Overview
+
+| Category | Commands | Typical Savings |
+|----------|----------|-----------------|
+| Tests | vitest, playwright, cargo test | 90-99% |
+| Build | next, tsc, lint, prettier | 70-87% |
+| Git | status, log, diff, add, commit | 59-80% |
+| GitHub | gh pr, gh run, gh issue | 26-87% |
+| Package Managers | pnpm, npm, npx | 70-90% |
+| Files | ls, read, grep, find | 60-75% |
+| Infrastructure | docker, kubectl | 85% |
+| Network | curl, wget | 65-70% |
+
+Overall average: **60-90% token reduction** on common development operations.
+<!-- /rtk-instructions -->
 
 ---
 
@@ -363,7 +444,43 @@ When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"
 
 ### code-review-graph
 
-Use `query_graph`, `detect_changes` and `get_impact_radius` before large greps. Particularly relevant here: changes to `registry.ts` or `packages/shared` have cross-package blast radius that is not obvious from a single file view.
+Use `query_graph`, `detect_changes` and `get_impact_radius` before large greps. Particularly relevant here: changes to `registry.ts` or `packages/shared` have cross-package blast radius that is not obvious from a single file view — this is exactly the situation the four-file split is meant to catch, so treat a flagged cross-package impact as a signal to also re-read the affected package's `AGENTS.md`.
+
+**IMPORTANT: This project has a knowledge graph. ALWAYS use the
+code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
+the codebase.** The graph is faster, cheaper (fewer tokens), and gives
+you structural context (callers, dependents, test coverage) that file
+scanning cannot.
+
+#### When to use graph tools FIRST
+
+- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
+- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
+- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
+- **Architecture questions**: `get_architecture_overview` + `list_communities`
+
+Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+#### Key Tools
+
+| Tool | Use when |
+| ------ | ---------- |
+| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
+| `get_review_context` | Need source snippets for review — token-efficient |
+| `get_impact_radius` | Understanding blast radius of a change |
+| `get_affected_flows` | Finding which execution paths are impacted |
+| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `get_architecture_overview` | Understanding high-level codebase structure |
+| `refactor_tool` | Planning renames, finding dead code |
+
+#### Workflow
+
+1. The graph auto-updates on file changes (via hooks).
+2. Use `detect_changes` for code review.
+3. Use `get_affected_flows` to understand impact.
+4. Use `query_graph` pattern="tests_for" to check coverage.
 
 ---
 
@@ -378,6 +495,7 @@ Work an agent produces is not submission-ready until David has checked the follo
 - **License check on any newly added dependency.** Especially anything pulled in for the inspector — confirm it's MIT/Apache/ISC-equivalent before it ships in a submission with David's name on it.
 - **Read every AI-generated diff before commit.** The take-home brief explicitly requires the author to understand and validate generated code. This is not delegable to another agent — it's the one review step that has to be David, every time.
 - **Final pass on `DECISIONS.md` and the README's decisions section for consistency.** They should tell the same story; agents draft both independently and drift is easy to miss.
+- **Confirm the four AGENTS.md files haven't drifted from each other.** If root and a package file disagree on something that's stated in both, root wins and the package file needs fixing.
 
 ---
 
