@@ -15,6 +15,14 @@ dist/
 .turbo/
 *.tsbuildinfo
 .code-review-graph/
+# AI
+graphify-out/
+## Hocus (https://darkmagicstudios.com/products/hocus)
+.hocus
+_spells
+dashboard.html
+PRODUCT.md
+TASKS.md
 
 # Test / coverage
 coverage/
@@ -30,5 +38,3 @@ coverage/
 packages/web/dist/
 
 
-# AI
-graphify-out/

@@ -1,28 +1,28 @@
 {
-	"mcpServers": {
-		"context-mode": {
-			"command": "context-mode"
-		},
-		"github/github-mcp-server": {
-			"type": "http",
-			"url": "https://api.githubcopilot.com/mcp/",
-			"gallery": "https://api.mcp.github.com/2025-09-15/v0/servers/ab12cd34-5678-90ef-1234-567890abcdef",
-			"version": "0.13.0"
-		},
-		"sequentialthinking": {
-			"command": "npx",
-			"args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-			"type": "stdio"
-		},
-		"code-review-graph": {
-			"command": "uvx",
-			"args": ["code-review-graph", "serve"],
-			"type": "stdio"
-		},
-		"context7": {
-			"command": "npx",
-			"args": ["@anthropic-ai/context7"],
-			"type": "stdio"
-		}
-	}
+  "mcpServers": {
+    "context-mode": {
+      "command": "context-mode"
+    },
+    "github/github-mcp-server": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "gallery": "https://api.mcp.github.com/2025-09-15/v0/servers/ab12cd34-5678-90ef-1234-567890abcdef",
+      "version": "0.13.0"
+    },
+    "sequentialthinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "type": "stdio"
+    },
+    "code-review-graph": {
+      "command": "uvx",
+      "args": ["code-review-graph", "serve"],
+      "type": "stdio"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["@anthropic-ai/context7"],
+      "type": "stdio"
+    }
+  }
 }
