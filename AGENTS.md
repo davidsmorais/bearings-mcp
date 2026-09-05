@@ -264,6 +264,22 @@ All four tools read this file. Subagents and skills live in `.claude/` and are s
 | Subagents | `.claude/agents/<name>.md` | `@` mention by frontmatter `name` |
 | Skills | `.claude/skills/<name>/SKILL.md` | `/` slash commands |
 
+### 👥 Active Agent Roster & Registry
+
+The project uses 8 specialized sub-agents rooted in `.hocus/personas/`:
+
+| Agent Name | Soul / Character | Role | Glyph | Primary Responsibilities | Allowed Tools |
+|---|---|---|---|---|---|
+| **`orchestrator`** | Roger Bacon (`jared`) | Orchestrator | `[#]` | Maintains battle plans in `_spells/`, delegates task queue, tracks progress & blockers | `read`, `write`, `edit`, `grep`, `glob`, `bash` |
+| **`planner`** | Merlin (`richard`) | Architect / Planner | `(*)` | Drafts `_spells/*.md`, invariant enforcement, upstream architecture | `read`, `grep`, `glob` |
+| **`server-dev`** | Flamel (`dinesh`) | Server Developer | `</>` | Implements MCP tools, upstream clients, HTTP client core, shared schemas | `read`, `write`, `edit`, `bash`, `grep`, `glob` |
+| **`web-dev`** | Nostradamus (`monica`) | Web Developer | `[UI]` | Implements React 19 inspector, dynamic Zod form generator, cost tracking | `read`, `write`, `edit`, `bash`, `grep`, `glob` |
+| **`reviewer`** | Zoroaster (`gilfoyle`) | Reviewer / Security | `(o)` | Audits code, PRs, security (API keys), error taxonomy, schema strictness | `read`, `grep`, `bash` |
+| **`qa`** | Cagliostro (`jian-yang`) | QA / Tester | `[~]` | Real-world testing, edge case coordinates, upstream rate limit stress tests | `read`, `bash` |
+| **`costs-cleaner`** | Prospero (`russ`) | Quota & Costs Cleaner | `[$]` | Audits Geoapify credit consumption (1 credit / 20 places), token trimming | `read`, `grep` |
+| **`founder`** | Midas (`peter-gregory`) | Founder | `[0]` | Stack interrogation, hotel enterprise constraints, architectural governance | `read`, `write`, `bash` |
+
+
 ### Cursor
 Loads `AGENTS.md` as project rules on every Agent chat, and resolves the nearest `AGENTS.md` to whatever file is open — so a session working in `packages/web` picks up that package's file automatically. Reads `.claude/` paths directly. Cursor-specific rules in `.cursor/rules/*.mdc`. Full MCP support for `code-review-graph`.
 
@@ -501,4 +517,6 @@ Work an agent produces is not submission-ready until David has checked the follo
 
 ## Learned Facts
 
--
+- 2026-09-05: The 8 agents in `.agents/agents/` were documented but never compiled to `.claude/agents/` — Claude Code could not actually spawn them via the `Agent` tool. Fixed by writing compiled `.claude/agents/<name>.md` frontmatter files for all 8. If a soul in `.agents/agents/` changes, regenerate its `.claude/agents/` counterpart in the same change.
+- 2026-09-05: The 5 repo-specific skills (`new-mcp-tool`, `new-upstream-client`, `new-shared-schema`, `new-web-component`, `new-web-hook`) existed in `.agents/skills/` but their `.claude/skills/` counterparts were empty stub directories. Fixed by copying `SKILL.md` into each. Keep both directories in sync when either changes.
+- 2026-09-05: `CLAUDE.md` and `hocus.md` were missing at repo root despite being part of the original harness scaffolding scope; both created.
