@@ -1,4 +1,4 @@
-import { createToolError, isToolError } from "@bearings/shared";
+import { isToolError, type ToolError, toToolError, zodErrorToToolError } from "@bearings/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -22,8 +22,16 @@ function resolveObjectSchema(schema: AnyToolSchema): z.ZodObject<z.ZodRawShape> 
   return current;
 }
 
-function errorResult(text: string, structured: Record<string, unknown>): CallToolResult {
-  return { isError: true, content: [{ type: "text", text }], structuredContent: structured };
+function toolErrorToStructuredContent(error: ToolError): Record<string, unknown> {
+  return error as unknown as Record<string, unknown>;
+}
+
+function errorResult(error: ToolError): CallToolResult {
+  return {
+    isError: true,
+    content: [{ type: "text", text: error.message }],
+    structuredContent: toolErrorToStructuredContent(error),
+  };
 }
 
 /**
@@ -48,11 +56,7 @@ export function createServer(
         if (hasRefinements) {
           const refined = tool.inputSchema.safeParse(args);
           if (!refined.success) {
-            const message = refined.error.issues.map((i) => i.message).join("; ");
-            return errorResult(
-              `Input validation error: ${message}`,
-              createToolError("INVALID_INPUT", message) as unknown as Record<string, unknown>,
-            );
+            return errorResult(zodErrorToToolError(refined.error, args));
           }
         }
 
@@ -60,7 +64,7 @@ export function createServer(
           const value = await tool.handler(args, { signal: extra?.signal });
 
           if (isToolError(value)) {
-            return errorResult(value.message, value as unknown as Record<string, unknown>);
+            return errorResult(value);
           }
 
           const text =
@@ -74,11 +78,7 @@ export function createServer(
             ...(isPlainObject ? { structuredContent: value as Record<string, unknown> } : {}),
           };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return errorResult(
-            `Internal tool execution error: ${message}`,
-            createToolError("INTERNAL_ERROR", message) as unknown as Record<string, unknown>,
-          );
+          return errorResult(toToolError(error));
         }
       },
     );

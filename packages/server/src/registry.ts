@@ -1,5 +1,8 @@
+import { analyseNeighbourhoodTool } from "./tools/analyseNeighbourhood.js";
 import type { AnyToolSchema, ToolDefinition } from "./tools/defineTool.js";
 import { echoTool } from "./tools/echo.js";
+import { getDestinationBriefTool } from "./tools/getDestinationBrief.js";
+import { resolveDestinationTool } from "./tools/resolveDestination.js";
 
 /** Throws if two tools share a name — a silent overwrite would make tools/list lie. */
 export function assertUniqueToolNames(definitions: readonly ToolDefinition<AnyToolSchema>[]): void {
@@ -17,6 +20,11 @@ export function assertUniqueToolNames(definitions: readonly ToolDefinition<AnyTo
  * Both transports read from here; neither holds its own list. Adding a tool means
  * adding an import and an array entry — no transport change.
  */
-export const tools: readonly ToolDefinition<AnyToolSchema>[] = [echoTool];
+export const tools: readonly ToolDefinition<AnyToolSchema>[] = [
+  echoTool,
+  resolveDestinationTool,
+  getDestinationBriefTool,
+  analyseNeighbourhoodTool,
+];
 
 assertUniqueToolNames(tools);

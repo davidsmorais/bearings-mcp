@@ -1,4 +1,4 @@
-import { createToolError } from "@bearings/shared";
+import { notFound, ToolErrorCode, toolInputSchemas } from "@bearings/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -63,9 +63,7 @@ describe("createServer error handling and schema extensions", () => {
       name: "returnsError",
       description: "Returns a ToolError structure.",
       inputSchema: z.object({ query: z.string() }),
-      handler: ({ query }) => {
-        return createToolError("NOT_FOUND", `Query "${query}" not found`);
-      },
+      handler: ({ query }) => notFound(`Query "${query}" not found`),
     }),
     defineTool({
       name: "throwsError",
@@ -118,8 +116,7 @@ describe("createServer error handling and schema extensions", () => {
     expect(result.isError).toBe(true);
     expect(result.content).toEqual([{ type: "text", text: 'Query "atlantis" not found' }]);
     expect(result.structuredContent).toEqual({
-      isError: true,
-      code: "NOT_FOUND",
+      code: ToolErrorCode.NOT_FOUND,
       message: 'Query "atlantis" not found',
     });
   });
@@ -130,12 +127,11 @@ describe("createServer error handling and schema extensions", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: "Internal tool execution error: Unexpected database connection crash",
+        text: "Unexpected database connection crash",
       },
     ]);
     expect(result.structuredContent).toEqual({
-      isError: true,
-      code: "INTERNAL_ERROR",
+      code: ToolErrorCode.INTERNAL_ERROR,
       message: "Unexpected database connection crash",
     });
   });
@@ -160,11 +156,88 @@ describe("createServer error handling and schema extensions", () => {
     });
     expect(invalidResult.isError).toBe(true);
     expect(JSON.stringify(invalidResult.content)).toMatch(/min must be less than or equal to max/i);
+    expect(invalidResult.structuredContent).toEqual({
+      code: ToolErrorCode.INVALID_INPUT,
+      field: "",
+      message: "min must be less than or equal to max",
+    });
   });
 
   it("forwards AbortSignal in ToolContext to handler", async () => {
     const result = await client.callTool({ name: "signalAwareTool", arguments: {} });
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual({ hasSignal: true });
+  });
+});
+
+describe("stub tools over an in-memory transport", () => {
+  let client: Client;
+  let server: McpServer;
+
+  beforeEach(async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    client = new Client({ name: "test-stubs", version: "0" });
+    server = createServer();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  });
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  it.each(["resolve_destination", "get_destination_brief", "analyse_neighbourhood"] as const)(
+    "%s returns INTERNAL_ERROR via MCP",
+    async (name) => {
+      const args =
+        name === "resolve_destination"
+          ? { query: "Paris" }
+          : name === "get_destination_brief"
+            ? {
+                location: {
+                  name: "Paris",
+                  coordinates: { lat: 48.8566, lon: 2.3522 },
+                  countryCode: "FR",
+                },
+                stay: { start: "2026-06-01", end: "2026-06-07" },
+              }
+            : { coordinates: { lat: 48.8566, lon: 2.3522 } };
+
+      const result = await client.callTool({ name, arguments: args });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual({
+        code: ToolErrorCode.INTERNAL_ERROR,
+        message: `${name} is not implemented yet`,
+      });
+    },
+  );
+
+  it("advertises stub tools with Not yet implemented prefix", async () => {
+    const { tools: listed } = await client.listTools();
+    for (const name of [
+      "resolve_destination",
+      "get_destination_brief",
+      "analyse_neighbourhood",
+    ] as const) {
+      const tool = listed.find((t) => t.name === name);
+      expect(tool?.description).toMatch(/^Not yet implemented — /);
+    }
+  });
+});
+
+describe("toolInputSchemas drift guard", () => {
+  it("registers every toolInputSchemas entry with reference-identical inputSchema", () => {
+    for (const [name, schema] of Object.entries(toolInputSchemas)) {
+      const tool = tools.find((t) => t.name === name);
+      expect(tool, `missing registry entry for ${name}`).toBeDefined();
+      expect(tool?.inputSchema).toBe(schema);
+    }
+  });
+
+  it("registers no tools absent from toolInputSchemas", () => {
+    for (const tool of tools) {
+      expect(toolInputSchemas).toHaveProperty(tool.name);
+      expect(tool.inputSchema).toBe(toolInputSchemas[tool.name as keyof typeof toolInputSchemas]);
+    }
   });
 });
