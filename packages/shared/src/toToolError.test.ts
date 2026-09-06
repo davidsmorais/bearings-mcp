@@ -89,7 +89,7 @@ describe("toToolError", () => {
     expect(toToolError(original)).toBe(original);
   });
 
-  it("maps a ZodError without input", () => {
+  it("maps a ZodError without input, omitting the received clause instead of fabricating one", () => {
     const schema = z.object({ radiusM: z.number().int().max(5000) });
     const result = schema.safeParse({ radiusM: 50000 });
     expect(result.success).toBe(false);
@@ -97,7 +97,23 @@ describe("toToolError", () => {
       const error = toToolError(result.error);
       expect(error.code).toBe(ToolErrorCode.INVALID_INPUT);
       expect(error).toHaveProperty("field", "radiusM");
-      expect(error.message).toContain("radiusM");
+      expect(error.message).toBe("radiusM must be 5000 or less");
+      expect(error.message).not.toContain("undefined");
+    }
+  });
+
+  it("maps a ZodError with input, reporting the actual received value", () => {
+    const schema = z.object({ radiusM: z.number().int().max(5000) });
+    const input = { radiusM: 50000 };
+    const result = schema.safeParse(input);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const error = toToolError(result.error, input);
+      expect(error).toEqual({
+        code: ToolErrorCode.INVALID_INPUT,
+        field: "radiusM",
+        message: "radiusM must be 5000 or less, received 50000",
+      });
     }
   });
 
