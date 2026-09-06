@@ -1,5 +1,5 @@
 import { type toolInputSchemas, zodErrorToToolError } from "@bearings/shared";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   buildDefaultValues,
   type FormFieldDescriptor,
@@ -153,44 +153,33 @@ export const SchemaForm = ({ schema }: SchemaFormProps) => {
   const fields = useMemo(() => zodSchemaToFormFields(schema), [schema]);
   const [values, setValues] = useState<Record<string, unknown>>(() => buildDefaultValues(fields));
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setValues(buildDefaultValues(fields));
     setValidationMessage(null);
   }, [fields]);
 
+  // Debounced validation lives here, keyed on `values`, rather than inside the state
+  // updater passed to setValues — that updater must stay pure. React (StrictMode
+  // included) may invoke it more than once per change, and scheduling a timer as a
+  // side effect there would double-schedule and silently orphan one of them.
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
-
-  const scheduleValidation = (nextValues: Record<string, unknown>) => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(() => {
-      const result = schema.safeParse(nextValues);
+    const timeoutId = setTimeout(() => {
+      const result = schema.safeParse(values);
       if (result.success) {
         setValidationMessage(null);
         return;
       }
 
-      const toolError = zodErrorToToolError(result.error, nextValues);
+      const toolError = zodErrorToToolError(result.error, values);
       setValidationMessage(toolError.message);
     }, VALIDATION_DEBOUNCE_MS);
-  };
+
+    return () => clearTimeout(timeoutId);
+  }, [values, schema]);
 
   const handleChange = (path: string, value: unknown) => {
-    setValues((current) => {
-      const next = setValueAtPath(current, path, value);
-      scheduleValidation(next);
-      return next;
-    });
+    setValues((current) => setValueAtPath(current, path, value));
   };
 
   return (
