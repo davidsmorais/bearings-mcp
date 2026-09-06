@@ -1,25 +1,29 @@
-import { isToolError } from "@bearings/shared";
+import { createToolError, isToolError } from "@bearings/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { tools } from "./registry.js";
 import type { AnyToolSchema, ToolDefinition } from "./tools/defineTool.js";
 
 /**
- * Normalizes a schema for the MCP SDK.
- * If the schema is a ZodEffects (e.g. from .refine()), expose .shape from the underlying
- * schema so the SDK's `normalizeObjectSchema` can generate proper JSON Schema in tools/list.
+ * Unwraps `.refine()` / `.superRefine()` wrappers (`ZodEffects`) to reach the
+ * underlying object schema. The SDK generates the `tools/list` JSON Schema and
+ * validates fields from this object; the full schema (refinements included) is
+ * still enforced in the handler wrapper below.
  */
-function normalizeSchemaForSdk(schema: AnyToolSchema): AnyToolSchema {
-  if ("_def" in schema && schema._def && "schema" in schema._def && !("shape" in schema)) {
-    const inner = (schema._def as { schema: unknown }).schema;
-    if (inner && typeof inner === "object" && "shape" in inner) {
-      Object.defineProperty(schema, "shape", {
-        get: () => (inner as { shape: unknown }).shape,
-        configurable: true,
-      });
-    }
+function resolveObjectSchema(schema: AnyToolSchema): z.ZodObject<z.ZodRawShape> {
+  let current: z.ZodTypeAny = schema;
+  while (current instanceof z.ZodEffects) {
+    current = current.innerType();
   }
-  return schema;
+  if (!(current instanceof z.ZodObject)) {
+    throw new Error("Tool inputSchema must be a ZodObject, optionally wrapped in .refine()");
+  }
+  return current;
+}
+
+function errorResult(text: string, structured: Record<string, unknown>): CallToolResult {
+  return { isError: true, content: [{ type: "text", text }], structuredContent: structured };
 }
 
 /**
@@ -33,22 +37,30 @@ export function createServer(
   const server = new McpServer({ name: "bearings-mcp", version: "0.1.0" });
 
   for (const tool of definitions) {
+    const objectSchema = resolveObjectSchema(tool.inputSchema);
+    // Only re-validate when the tool schema carries refinements the SDK won't see.
+    const hasRefinements = tool.inputSchema !== objectSchema;
+
     server.registerTool(
       tool.name,
-      {
-        description: tool.description,
-        inputSchema: normalizeSchemaForSdk(tool.inputSchema),
-      },
+      { description: tool.description, inputSchema: objectSchema },
       async (args, extra): Promise<CallToolResult> => {
+        if (hasRefinements) {
+          const refined = tool.inputSchema.safeParse(args);
+          if (!refined.success) {
+            const message = refined.error.issues.map((i) => i.message).join("; ");
+            return errorResult(
+              `Input validation error: ${message}`,
+              createToolError("INVALID_INPUT", message) as unknown as Record<string, unknown>,
+            );
+          }
+        }
+
         try {
           const value = await tool.handler(args, { signal: extra?.signal });
 
           if (isToolError(value)) {
-            return {
-              isError: true,
-              content: [{ type: "text", text: value.message }],
-              structuredContent: value as unknown as Record<string, unknown>,
-            };
+            return errorResult(value.message, value as unknown as Record<string, unknown>);
           }
 
           const text =
@@ -63,15 +75,10 @@ export function createServer(
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          return {
-            isError: true,
-            content: [{ type: "text", text: `Internal tool execution error: ${message}` }],
-            structuredContent: {
-              isError: true,
-              code: "INTERNAL_ERROR",
-              message,
-            },
-          };
+          return errorResult(
+            `Internal tool execution error: ${message}`,
+            createToolError("INTERNAL_ERROR", message) as unknown as Record<string, unknown>,
+          );
         }
       },
     );
