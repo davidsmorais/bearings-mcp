@@ -49,8 +49,12 @@ const renderFieldInput = (
           max={field.max}
           step={1}
           onChange={(event) => {
-            const next = event.target.value;
-            onChange(field.path, next === "" ? "" : Number(next));
+            // valueAsNumber (not Number(event.target.value)) so an empty or
+            // still-incomplete numeric string (e.g. "1e") reports NaN instead of a
+            // stray "" that would fail Zod with a confusing "expected number, got
+            // string" instead of the intended "required" message.
+            const next = event.target.valueAsNumber;
+            onChange(field.path, Number.isNaN(next) ? undefined : next);
           }}
           className={inputClassName}
         />

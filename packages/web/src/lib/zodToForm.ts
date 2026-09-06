@@ -170,7 +170,10 @@ export const buildDefaultValues = (fields: FormFieldDescriptor[]): Record<string
       case "string":
         return "";
       case "number":
-        return field.min ?? 0;
+        // Left blank rather than defaulting to `field.min` — for a schema with no
+        // real default (Coordinates.lat/lon, say), the minimum bound is not a sane
+        // starting value; it just prefills the form with the South Pole.
+        return undefined;
       case "boolean":
         return false;
       case "enum":
