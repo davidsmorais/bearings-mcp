@@ -18,7 +18,7 @@ export type Place = z.infer<typeof PlaceSchema>;
 
 /** Input for the `echo` diagnostic tool — proves registry-to-transport wiring end to end. */
 export const EchoInputSchema = z.object({
-  message: z.string().min(1).max(1000),
+  message: z.string().min(1).max(1000).describe("The message to echo back verbatim"),
 });
 
 export type EchoInput = z.infer<typeof EchoInputSchema>;
