@@ -9,6 +9,7 @@ export type ToolErrorCode =
   | "RATE_LIMITED"
   | "QUOTA_EXCEEDED"
   | "UPSTREAM_ERROR"
+  | "TIMEOUT"
   | "INTERNAL_ERROR";
 
 /**
