@@ -5,8 +5,10 @@
     "packages/shared": {
       "project": ["src/**/*.ts!"]
     },
+    // Temporary entry until upstream/ clients import the HTTP core (remove with _spells/001 Phase 2)
     "packages/server": {
-      "project": ["src/**/*.ts!", "test/**/*.ts"]
+      "project": ["src/**/*.ts!", "test/**/*.ts"],
+      "entry": ["src/http/index.ts"]
     },
     "packages/web": {
       "project": ["src/**/*.{ts,tsx}!"]
