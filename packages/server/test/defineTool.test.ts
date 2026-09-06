@@ -3,31 +3,57 @@ import { z } from "zod";
 import { defineTool } from "../src/tools/defineTool.js";
 
 describe("defineTool", () => {
-  it("returns its input unchanged at runtime", () => {
-    const definition = {
-      name: "echo",
-      description: "Echoes the message back.",
-      inputSchema: z.object({ message: z.string() }),
-      handler: (input: { message: string }) => input.message,
-    };
-
-    expect(defineTool(definition)).toBe(definition);
-  });
-
-  it("types the handler parameter from the schema", () => {
+  it("defines a tool with standard object schema and invokes its handler", async () => {
     const tool = defineTool({
       name: "add",
       description: "Adds two numbers.",
       inputSchema: z.object({ a: z.number(), b: z.number() }),
-      handler: (input) => {
-        // input is inferred as { a: number; b: number } from the schema.
-        const sum: number = input.a + input.b;
+      handler: ({ a, b }) => a + b,
+    });
 
-        // @ts-expect-error - `missing` is not a property of the parsed schema type.
-        return input.missing ?? sum;
+    expect(tool.name).toBe("add");
+    expect(tool.description).toBe("Adds two numbers.");
+    const result = await tool.handler({ a: 2, b: 3 }, {});
+    expect(result).toBe(5);
+  });
+
+  it("supports schemas with object-level refine (ZodEffects)", async () => {
+    const dateRangeSchema = z
+      .object({
+        startDate: z.string(),
+        endDate: z.string(),
+      })
+      .refine((data) => data.startDate <= data.endDate, {
+        message: "startDate must be before or equal to endDate",
+      });
+
+    const tool = defineTool({
+      name: "dateRange",
+      description: "Checks a date range.",
+      inputSchema: dateRangeSchema,
+      handler: ({ startDate, endDate }) => `${startDate} to ${endDate}`,
+    });
+
+    expect(tool.name).toBe("dateRange");
+    const result = await tool.handler({ startDate: "2026-09-01", endDate: "2026-09-05" }, {});
+    expect(result).toBe("2026-09-01 to 2026-09-05");
+  });
+
+  it("passes execution context including AbortSignal to handler", async () => {
+    const controller = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+
+    const tool = defineTool({
+      name: "cancellable",
+      description: "Tool with abort signal awareness.",
+      inputSchema: z.object({ query: z.string() }),
+      handler: (_input, context) => {
+        receivedSignal = context?.signal;
+        return { ok: true };
       },
     });
 
-    expect(tool.handler({ a: 2, b: 3 })).toBe(5);
+    await tool.handler({ query: "test" }, { signal: controller.signal });
+    expect(receivedSignal).toBe(controller.signal);
   });
 });

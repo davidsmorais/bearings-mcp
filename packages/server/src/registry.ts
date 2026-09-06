@@ -1,11 +1,8 @@
-import type { z } from "zod";
-import type { ToolDefinition } from "./tools/defineTool.js";
+import type { AnyToolSchema, ToolDefinition } from "./tools/defineTool.js";
 import { echoTool } from "./tools/echo.js";
 
 /** Throws if two tools share a name — a silent overwrite would make tools/list lie. */
-export function assertUniqueToolNames(
-  definitions: readonly ToolDefinition<z.ZodObject<z.ZodRawShape>>[],
-): void {
+export function assertUniqueToolNames(definitions: readonly ToolDefinition<AnyToolSchema>[]): void {
   const seen = new Set<string>();
   for (const definition of definitions) {
     if (seen.has(definition.name)) {
@@ -20,6 +17,6 @@ export function assertUniqueToolNames(
  * Both transports read from here; neither holds its own list. Adding a tool means
  * adding an import and an array entry — no transport change.
  */
-export const tools: readonly ToolDefinition<z.ZodObject<z.ZodRawShape>>[] = [echoTool];
+export const tools: readonly ToolDefinition<AnyToolSchema>[] = [echoTool];
 
 assertUniqueToolNames(tools);
