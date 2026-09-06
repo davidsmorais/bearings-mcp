@@ -8,7 +8,7 @@
 
 - **Monorepo Structure**: Managed via `pnpm` workspaces (`packages/shared`, `packages/server`, `packages/web`).
 - **Tooling**: Biome 2.0 (linter & formatter), TypeScript 5.8.2 (ESM modules throughout), Vitest 3.0.9 for testing.
-- **Active Phase**: Foundation & core infrastructure setup. Agents, specialized skills, battle plans (`_spells/`), and foundational documentation established.
+- **Active Phase**: Foundation & core infrastructure setup. **HTTP client core delivered (`_spells/003`, 2026-09-06)** — `packages/server/src/http/` with `createHttpCore()`, per-host rate limiting, bounded TTL cache, retry, and timeout. Production callers use `getHttpCore()`; upstream clients land in `_spells/001` Phase 2.
 - **Harness scaffolding closed 2026-09-05**: `.claude/agents/*.md` (compiled subagent frontmatter for all 8), `.claude/skills/new-*` (copied from `.agents/skills/`), `CLAUDE.md`, and `hocus.md` were the remaining gaps from the initial build; all now present. See `hocus.md` for the full build queue and `AGENTS.md`'s Learned Facts for what was missing and why.
 - **`.claude/{agents,skills}` are symlinks into `.agents/` (2026-09-06)**: every `.claude/agents/*.md` and `.claude/skills/*` (except the four hand-written skills `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`) is a relative symlink to the corresponding file/dir under `.agents/`. `.agents/` is the source of truth; edit there.
 - **Walking-skeleton MCP server delivered (`_spells/002`, 2026-09-06)**: `packages/server` now boots end to end over stdio. `src/registry.ts` (`tools` array + `assertUniqueToolNames`) is the single tool source; `src/server.ts` `createServer()` is the shared factory both transports use; `src/transports/stdio.ts` is the entrypoint (`dist/transports/stdio.js`, also the `bin`). One tool: `echo` (diagnostic, permanent). HTTP transport and the three real tools remain `_spells/001` work.
@@ -20,11 +20,11 @@
   - **`echo` is exempt from the "every tool accepts `detail: brief|full`" rule** (server `AGENTS.md`) — it is a diagnostic with nothing to shape. Not a precedent for the real tools.
   - stdio stdout is the JSON-RPC channel — all diagnostics go to stderr; `src/index.ts` has no top-level statements. Tests live in `packages/server/test/`, typechecked via `tsconfig.test.json` (the `typecheck` script runs both configs).
 - **`typecheck` script now exists repo-wide**: `pnpm typecheck` → `pnpm -r run typecheck` → `tsc --noEmit` across all workspace packages (`shared`, `server` with both configs, and `web`). Root `pnpm lint` may be intercepted by a local tool wrapper that mislabels output — run `./node_modules/.bin/biome check .` directly to be certain.
-- **`knip` configured repo-wide (2026-09-06)**: Monorepo cleanliness tool installed at root (`knip.json`). Verifies unused files, dependencies, and non-entry exports across `packages/shared`, `packages/server`, and `packages/web`. Wired to root `pnpm knip` script and validated in GitHub Actions CI right after Biome linting.
+- **`knip` configured repo-wide (2026-09-06)**: Monorepo cleanliness tool installed at root (`knip.jsonc`). Verifies unused files, dependencies, and non-entry exports across `packages/shared`, `packages/server`, and `packages/web`. Wired to root `pnpm knip` script and validated in GitHub Actions CI right after Biome linting.
 - **Active Invariant Enforcement**:
   - `packages/shared` is the sole source for Zod input schemas and domain types.
   - `packages/server/src/registry.ts` is the single source for tool registration.
-  - All upstream traffic must route through the HTTP client core (`packages/server/src/http/`).
+- **All upstream traffic must route through the HTTP client core** (`packages/server/src/http/`). Delivered 2026-09-06: `createHttpCore()` factory, `getHttpCore()` as the single production instance, bounded in-memory LRU cache, FIFO token-bucket rate limiter (Nominatim pinned to 1 req/sec), per-attempt timeout with typed `TIMEOUT` error, retry with `Retry-After` precedence. No disk persistence — in-memory only.
 
 ---
 
