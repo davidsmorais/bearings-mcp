@@ -4,7 +4,21 @@ import { createServer } from "../server.js";
 
 async function main(): Promise<void> {
   const server = createServer();
-  await server.connect(new StdioServerTransport());
+  const transport = new StdioServerTransport();
+
+  const shutdown = async () => {
+    try {
+      await server.close();
+    } catch {
+      // Ignored during process teardown
+    }
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  await server.connect(transport);
   // stdout carries the JSON-RPC stream; status lines go to stderr only.
   console.error("bearings-mcp stdio transport ready");
 }
