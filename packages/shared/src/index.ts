@@ -1,6 +1,7 @@
 export type { ToolError } from "./errors.js";
 export {
   ambiguous,
+  createToolError,
   internalError,
   invalidInput,
   isToolError,
@@ -8,6 +9,7 @@ export {
   quotaExceeded,
   rateLimited,
   ToolErrorCode,
+  upstreamError,
   upstreamTimeout,
 } from "./errors.js";
 export type { AnalyseNeighbourhoodInput } from "./schemas/analyseNeighbourhood.js";

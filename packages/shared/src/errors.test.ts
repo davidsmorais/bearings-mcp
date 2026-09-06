@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ambiguous,
+  createToolError,
   internalError,
   invalidInput,
   isToolError,
@@ -98,6 +99,20 @@ describe("errors", () => {
     expect(error).toEqual({
       code: ToolErrorCode.INTERNAL_ERROR,
       message: "unexpected failure",
+    });
+    expect(isToolError(error)).toBe(true);
+  });
+
+  it("creates a TIMEOUT ToolError for per-attempt upstream timeouts", () => {
+    const error = createToolError("TIMEOUT", "open-meteo request timed out after 10000ms", {
+      hostId: "open-meteo",
+      attempts: 2,
+    });
+    expect(error).toEqual({
+      isError: true,
+      code: "TIMEOUT",
+      message: "open-meteo request timed out after 10000ms",
+      details: { hostId: "open-meteo", attempts: 2 },
     });
     expect(isToolError(error)).toBe(true);
   });

@@ -195,6 +195,7 @@ An agent reporting a task complete without having run all three is reporting inc
 - Magic numbers in the analysis layer
 - Committing `.env`
 - Loosening a schema without being asked (see Invariant 9)
+- Importing `@tanstack/*` from `packages/server` — it is a `packages/web` dependency only
 
 Package-specific forbidden practices (React nesting, `useEffect` rules, etc.) live in `packages/web/AGENTS.md`.
 
@@ -206,7 +207,7 @@ Package-specific forbidden practices (React nesting, `useEffect` rules, etc.) li
 - **Respect the cache before optimising anything else.** A slow first call is fine; a slow repeated call means the cache key or TTL is wrong, not that something needs a rewrite.
 - **Composed tools should run in roughly the time of the slowest upstream, not the sum.** If `get_destination_brief` takes as long as Open-Meteo plus Nager.Date combined, the fan-out isn't actually parallel — check for an accidental `await` inside a loop before touching anything else.
 - **Debounce, don't throttle, on form inputs in the inspector.** Client-side validation reruns on change; a debounce around 200–300ms keeps it from firing on every keystroke.
-- **No premature caching in the React layer.** `@tanstack/react-query`'s defaults are enough for a 3-tool inspector. Don't add a second cache on top of it without a measured reason.
+- **No premature caching in the React layer.** `@tanstack/react-query`'s *caching* defaults are enough for a 3-tool inspector — don't add a second cache on top without a measured reason. This does **not** extend to its *retry* default: the inspector configures `retry: false` on purpose, so a failing Geoapify call shows the developer one failure, not three silent attempts burning three credits. Caching defaults: keep. Retry default: off. See `DECISIONS.md`.
 - **Bundle size is not a target for this project.** It's a local dev inspector, not a shipped app. Don't spend time code-splitting or lazy-loading three tool forms.
 
 ---

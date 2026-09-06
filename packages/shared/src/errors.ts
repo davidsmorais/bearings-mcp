@@ -1,46 +1,95 @@
 import type { Location } from "./types/location.js";
 
+/**
+ * Canonical error codes for Bearings MCP tools.
+ * Error codes are additive per packages/shared/AGENTS.md.
+ */
 export enum ToolErrorCode {
   INVALID_INPUT = "INVALID_INPUT",
   AMBIGUOUS = "AMBIGUOUS",
   RATE_LIMITED = "RATE_LIMITED",
   UPSTREAM_TIMEOUT = "UPSTREAM_TIMEOUT",
+  TIMEOUT = "TIMEOUT",
   QUOTA_EXCEEDED = "QUOTA_EXCEEDED",
   NOT_FOUND = "NOT_FOUND",
   INTERNAL_ERROR = "INTERNAL_ERROR",
+  UPSTREAM_ERROR = "UPSTREAM_ERROR",
 }
 
 export type ToolError =
   | {
+      readonly isError?: true;
       readonly code: ToolErrorCode.INVALID_INPUT;
       readonly message: string;
       readonly field: string;
+      readonly details?: Record<string, unknown>;
     }
   | {
+      readonly isError?: true;
       readonly code: ToolErrorCode.AMBIGUOUS;
       readonly message: string;
       readonly candidates: readonly Location[];
+      readonly details?: Record<string, unknown>;
     }
   | {
+      readonly isError?: true;
       readonly code: ToolErrorCode.RATE_LIMITED;
       readonly message: string;
       readonly upstream: string;
       readonly retryAfterMs: number;
+      readonly details?: Record<string, unknown>;
     }
   | {
+      readonly isError?: true;
       readonly code: ToolErrorCode.UPSTREAM_TIMEOUT;
       readonly message: string;
       readonly upstream: string;
       readonly timeoutMs: number;
+      readonly details?: Record<string, unknown>;
     }
   | {
+      readonly isError?: true;
+      readonly code: ToolErrorCode.TIMEOUT;
+      readonly message: string;
+      readonly upstream?: string;
+      readonly timeoutMs?: number;
+      readonly details?: Record<string, unknown>;
+    }
+  | {
+      readonly isError?: true;
       readonly code: ToolErrorCode.QUOTA_EXCEEDED;
       readonly message: string;
       readonly upstream: string;
       readonly resetsAt?: string;
+      readonly details?: Record<string, unknown>;
     }
-  | { readonly code: ToolErrorCode.NOT_FOUND; readonly message: string }
-  | { readonly code: ToolErrorCode.INTERNAL_ERROR; readonly message: string };
+  | {
+      readonly isError?: true;
+      readonly code: ToolErrorCode.NOT_FOUND;
+      readonly message: string;
+      readonly details?: Record<string, unknown>;
+    }
+  | {
+      readonly isError?: true;
+      readonly code: ToolErrorCode.INTERNAL_ERROR;
+      readonly message: string;
+      readonly details?: Record<string, unknown>;
+    }
+  | {
+      readonly isError?: true;
+      readonly code: ToolErrorCode.UPSTREAM_ERROR;
+      readonly message: string;
+      readonly upstream?: string;
+      readonly details?: Record<string, unknown>;
+    }
+  | {
+      readonly isError: true;
+      readonly code: ToolErrorCode;
+      readonly message: string;
+      readonly details?: Record<string, unknown>;
+    };
+
+const toolErrorCodes = Object.values(ToolErrorCode);
 
 /**
  * Structural type guard, not just a discriminant check — a domain object that happens
@@ -57,6 +106,10 @@ export function isToolError(value: unknown): value is ToolError {
     return false;
   }
 
+  if (record.isError === true) {
+    return typeof record.code === "string" && toolErrorCodes.includes(record.code as ToolErrorCode);
+  }
+
   switch (record.code) {
     case ToolErrorCode.INVALID_INPUT:
       return typeof record.field === "string";
@@ -66,6 +119,8 @@ export function isToolError(value: unknown): value is ToolError {
       return typeof record.upstream === "string" && typeof record.retryAfterMs === "number";
     case ToolErrorCode.UPSTREAM_TIMEOUT:
       return typeof record.upstream === "string" && typeof record.timeoutMs === "number";
+    case ToolErrorCode.TIMEOUT:
+      return true;
     case ToolErrorCode.QUOTA_EXCEEDED:
       return (
         typeof record.upstream === "string" &&
@@ -73,6 +128,7 @@ export function isToolError(value: unknown): value is ToolError {
       );
     case ToolErrorCode.NOT_FOUND:
     case ToolErrorCode.INTERNAL_ERROR:
+    case ToolErrorCode.UPSTREAM_ERROR:
       return true;
     default:
       return false;
@@ -120,4 +176,30 @@ export function notFound(message: string): ToolError {
 
 export function internalError(message: string): ToolError {
   return { code: ToolErrorCode.INTERNAL_ERROR, message };
+}
+
+export function upstreamError(
+  message: string,
+  upstream?: string,
+  details?: Record<string, unknown>,
+): ToolError {
+  return {
+    code: ToolErrorCode.UPSTREAM_ERROR,
+    message,
+    ...(upstream !== undefined ? { upstream } : {}),
+    ...(details !== undefined ? { details } : {}),
+  };
+}
+
+export function createToolError(
+  code: ToolErrorCode | `${ToolErrorCode}`,
+  message: string,
+  details?: Record<string, unknown>,
+): ToolError {
+  return {
+    isError: true,
+    code: code as ToolErrorCode,
+    message,
+    ...(details !== undefined ? { details } : {}),
+  };
 }

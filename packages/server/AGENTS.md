@@ -15,8 +15,64 @@ packages/server/src/
     http.ts              Streamable HTTP, for packages/web
   upstream/             one client per API (nominatim, open-meteo, nager, geoapify)
   analysis/              derived logic — density calculation, category adapter, classification
-  http/                 client core: cache, rate limiter, retry, timeout
+  http/                 client core: cache, rate limiter, retry, timeout (see HTTP core below)
 ```
+
+---
+
+## HTTP client core (`src/http/`)
+
+All upstream traffic routes through this module — no bare `fetch()` elsewhere (root Invariant 3).
+
+| File | Role |
+|---|---|
+| `types.ts` | `HostId`, `HostConfig`, `RequestMeta`, `HttpResult<T>` |
+| `config.ts` | `HOST_CONFIG` — declarative per-host TTL, rate limit, retry, timeout |
+| `cacheKey.ts` | Credential-free, order-independent cache keys |
+| `cache.ts` | Bounded in-memory LRU cache with lazy TTL expiry |
+| `rateLimiter.ts` | FIFO token-bucket limiter per host |
+| `timeout.ts` | Per-attempt `AbortController`, composed with caller signal |
+| `retry.ts` | Retryability classification and backoff (`Retry-After` wins on 429/503) |
+| `mapError.ts` | HTTP failure → `ToolError` (`classifyStatus` hook gets first refusal) |
+| `client.ts` | `createHttpCore()` — composes cache, single-flight, limiter, retry |
+| `index.ts` | Barrel + `getHttpCore()` lazy default instance |
+
+### Production construction
+
+`getHttpCore()` in `index.ts` is the **only** production construction site. Upstream clients call `getHttpCore().request(...)`. Tests build isolated cores via `createHttpCore({ fetch, clock })` — never share state across files.
+
+Grep review: `createHttpCore(` must appear only in `client.ts`, `index.ts`, and `test/`.
+
+### Request composition order
+
+```
+build cache key → cache hit? → return
+               → in-flight for key? → await same promise
+               → retry loop (up to maxAttempts):
+                    rate limiter acquire   ← INSIDE the loop
+                    authenticate(url)
+                    fetch with per-attempt timeout
+                    retryable? → backoff, continue
+                    ok? → cache success, return
+```
+
+**The limiter is inside the retry loop.** Retries are requests and each attempt consumes a token. A request that retries twice consumes three tokens, not one.
+
+### Timeout budget
+
+Timeout is **per attempt**, not per overall call. Worst-case wall time is roughly `maxAttempts × timeoutMs + sum(backoff delays)`. Callers can pass `signal` to cancel early.
+
+### `HttpResult<T>` contract
+
+`request()` returns `{ ok: true, data, meta } | ToolError` — never throws. Upstream clients propagate with:
+
+```ts
+const res = await getHttpCore().request<MyType>("nominatim", "/search", params);
+if (isToolError(res)) return res;
+// use res.data, res.meta
+```
+
+`RequestMeta` carries `hostId`, `cacheHit`, `attempts`, `durationMs`, and optional `status`. Errors include `details.hostId`, `details.attempts`, and optional `details.status` — never the authenticated URL.
 
 ---
 

@@ -101,3 +101,21 @@ definition to navigate to and no runtime value list for the type guard); a `cons
 `as const` and a derived type (recovers the runtime list and erases cleanly, but the call-site
 ergonomics are unchanged and the declaration is noisier for no gain); `const enum` (rejected
 outright — it breaks under `isolatedModules`, which this repo sets).
+
+---
+
+## 2026-09-06 — React Query for the inspector, custom core for upstreams
+
+**Decision:** Adopt `@tanstack/react-query` as the request-state layer in `packages/web` (the inspector), and leave `packages/server/src/http/` — the custom HTTP client core — exactly as it is. React Query is a `packages/web` dependency only; `packages/server` must never import `@tanstack/*` (now a repo-wide Forbidden Practice in `AGENTS.md`).
+
+**Why:**
+- `@tanstack/react-query` needs a React component tree; the MCP server is a plain Node process with none. The framework-agnostic `@tanstack/query-core` would run there, but provides none of the four things `packages/server/src/http/` exists for: per-host token-bucket rate limiting (Nominatim's 1 req/sec IP ban), `Retry-After` header precedence on retry, per-attempt `AbortSignal` timeout with a typed `TIMEOUT` error, and `ToolError` mapping. Adopting it server-side would be a net capability loss while still requiring every custom layer to be rebuilt on top.
+- In the inspector, the opposite is true: loading/error/success state, request de-duplication, and cache invalidation are exactly what React Query does well, and hand-rolling a second state machine on top of it is explicitly forbidden by `packages/web/AGENTS.md`.
+- The inspector configures `retry: false`, `refetchOnWindowFocus: false`, `staleTime: 0`. React Query's product defaults (3 retries, refetch on focus) are wrong for a debugging tool — a failed Geoapify call must show the developer one failure, not three silent attempts burning three credits. `AGENTS.md`'s "caching defaults are enough" guidance was amended in the same change to make clear it covers caching, not retry.
+
+**Alternatives considered:**
+- Rebuild the upstream core on `@tanstack/query-core` (loses rate limiting, `Retry-After`, per-attempt timeout, and `ToolError` mapping; still needs every custom layer anyway).
+- Delete the custom core entirely (violates the standing "no bare `fetch()` to an upstream" invariant).
+- Raw `fetch` in the hooks instead of the MCP SDK `Client` (re-implements JSON-RPC framing, session-id handling, and SSE parsing that the SDK already does correctly, and drifts the moment the SDK's session handling changes).
+
+**Status:** React Query layer, `QueryClient`, MCP client singleton, and `useToolList` / `useToolCall` hooks delivered under `_spells/004`. End-to-end verification against a running server is deferred to Linear DMS-503 (Streamable HTTP transport), which does not yet exist — the hooks are pinned by mocked-client unit tests in the meantime.
