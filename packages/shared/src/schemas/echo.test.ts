@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EchoInputSchema } from "./index.js";
+import { EchoInputSchema } from "./echo.js";
 
 describe("EchoInputSchema", () => {
   it("parses a valid message", () => {
