@@ -42,17 +42,41 @@ export type ToolError =
   | { readonly code: ToolErrorCode.NOT_FOUND; readonly message: string }
   | { readonly code: ToolErrorCode.INTERNAL_ERROR; readonly message: string };
 
-const toolErrorCodes = Object.values(ToolErrorCode);
-
+/**
+ * Structural type guard, not just a discriminant check — a domain object that happens
+ * to carry a `code` field naming a `ToolErrorCode` value must not read as an error, so
+ * each branch verifies the fields that variant actually requires.
+ */
 export function isToolError(value: unknown): value is ToolError {
   if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const record = value as Record<string, unknown>;
-  return (
-    toolErrorCodes.includes(record.code as ToolErrorCode) && typeof record.message === "string"
-  );
+  if (typeof record.message !== "string") {
+    return false;
+  }
+
+  switch (record.code) {
+    case ToolErrorCode.INVALID_INPUT:
+      return typeof record.field === "string";
+    case ToolErrorCode.AMBIGUOUS:
+      return Array.isArray(record.candidates);
+    case ToolErrorCode.RATE_LIMITED:
+      return typeof record.upstream === "string" && typeof record.retryAfterMs === "number";
+    case ToolErrorCode.UPSTREAM_TIMEOUT:
+      return typeof record.upstream === "string" && typeof record.timeoutMs === "number";
+    case ToolErrorCode.QUOTA_EXCEEDED:
+      return (
+        typeof record.upstream === "string" &&
+        (record.resetsAt === undefined || typeof record.resetsAt === "string")
+      );
+    case ToolErrorCode.NOT_FOUND:
+    case ToolErrorCode.INTERNAL_ERROR:
+      return true;
+    default:
+      return false;
+  }
 }
 
 export function invalidInput(message: string, field: string): ToolError {

@@ -114,7 +114,30 @@ describe("errors", () => {
       isToolError({
         code: ToolErrorCode.INVALID_INPUT,
         message: "bad input",
+        field: "query",
       }),
     ).toBe(true);
+  });
+
+  it("rejects a real ToolErrorCode whose variant-specific fields are missing", () => {
+    // A domain object that merely happens to carry a recognised `code` must not be
+    // mistaken for an error — each variant's own fields have to be present too.
+    expect(isToolError({ code: ToolErrorCode.INVALID_INPUT, message: "bad input" })).toBe(false);
+    expect(isToolError({ code: ToolErrorCode.AMBIGUOUS, message: "multiple matches" })).toBe(false);
+    expect(
+      isToolError({
+        code: ToolErrorCode.RATE_LIMITED,
+        message: "slow down",
+        upstream: "nominatim",
+      }),
+    ).toBe(false);
+    expect(
+      isToolError({
+        code: ToolErrorCode.UPSTREAM_TIMEOUT,
+        message: "timed out",
+        upstream: "open-meteo",
+      }),
+    ).toBe(false);
+    expect(isToolError({ code: ToolErrorCode.QUOTA_EXCEEDED, message: "over quota" })).toBe(false);
   });
 });
