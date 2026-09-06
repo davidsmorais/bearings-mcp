@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CountryCodeSchema } from "../types/countryCode.js";
 
 /** Input for resolving a fuzzy place name into a structured Location. */
 export const ResolveDestinationInputSchema = z.object({
@@ -7,12 +8,9 @@ export const ResolveDestinationInputSchema = z.object({
     .min(2)
     .max(200)
     .describe("Place name or address to resolve into a structured location"),
-  countryCode: z
-    .string()
-    .length(2)
-    .regex(/^[A-Z]{2}$/)
-    .optional()
-    .describe("ISO 3166-1 alpha-2 country code to bias geocoding results"),
+  countryCode: CountryCodeSchema.optional().describe(
+    "ISO 3166-1 alpha-2 country code to bias geocoding results",
+  ),
   limit: z
     .number()
     .int()

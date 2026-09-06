@@ -11,7 +11,7 @@ This is the most sensitive package in the repo relative to its size. Both the se
 ```
 packages/shared/src/
   schemas/              Zod input schemas, one per tool
-  types/                 domain types: Location, Coordinates, TimeWindow, PoiCategory
+  types/                 domain types: Location, Coordinates, CountryCode, TimeWindow, PoiCategory
   errors.ts              ToolErrorCode enum + discriminated union + per-code constructors
   toToolError.ts         zodErrorToToolError + toToolError (unknown-throw mapper)
   index.ts               barrel export — everything server and web import from

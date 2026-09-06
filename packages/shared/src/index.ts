@@ -21,6 +21,8 @@ export { ResolveDestinationInputSchema } from "./schemas/resolveDestination.js";
 export { toToolError, zodErrorToToolError } from "./toToolError.js";
 export type { Coordinates } from "./types/coordinates.js";
 export { CoordinatesSchema } from "./types/coordinates.js";
+export type { CountryCode } from "./types/countryCode.js";
+export { CountryCodeSchema } from "./types/countryCode.js";
 export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
 export type { PoiCategory } from "./types/poiCategory.js";

@@ -1,13 +1,11 @@
 import { z } from "zod";
 import { CoordinatesSchema } from "./coordinates.js";
+import { CountryCodeSchema } from "./countryCode.js";
 
 export const LocationSchema = z.object({
   name: z.string().min(1),
   coordinates: CoordinatesSchema,
-  countryCode: z
-    .string()
-    .length(2)
-    .regex(/^[A-Z]{2}$/),
+  countryCode: CountryCodeSchema,
   displayName: z.string().min(1).optional(),
 });
 

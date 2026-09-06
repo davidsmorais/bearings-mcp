@@ -2,16 +2,6 @@ import { z } from "zod";
 import { CoordinatesSchema } from "../types/coordinates.js";
 import { PoiCategorySchema } from "../types/poiCategory.js";
 
-const ALL_POI_CATEGORIES = [
-  "dining",
-  "cafes",
-  "nightlife",
-  "groceries",
-  "transit",
-  "parks",
-  "culture",
-] as const;
-
 /** Input for POI density analysis around a coordinate. */
 export const AnalyseNeighbourhoodInputSchema = z
   .object({
@@ -23,11 +13,13 @@ export const AnalyseNeighbourhoodInputSchema = z
       .max(5000)
       .default(500)
       .describe("Search radius in metres around the coordinates"),
+    // Bounds and default are derived from PoiCategorySchema.options rather than repeated
+    // here — adding a category to that enum must not silently exclude it from either.
     categories: z
       .array(PoiCategorySchema)
       .min(1)
-      .max(7)
-      .default([...ALL_POI_CATEGORIES])
+      .max(PoiCategorySchema.options.length)
+      .default([...PoiCategorySchema.options])
       .describe("POI categories to include in the neighbourhood profile"),
     // Geoapify bills 1 credit per 20 places, so this is a cost lever, not a page size.
     limitPerCategory: z
