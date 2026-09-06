@@ -1,7 +1,7 @@
 import { notFound, ToolErrorCode, toolInputSchemas } from "@bearings/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { tools } from "../src/registry.js";
@@ -10,7 +10,7 @@ import { defineTool } from "../src/tools/defineTool.js";
 
 describe("createServer over an in-memory transport", () => {
   let client: Client;
-  let server: McpServer;
+  let server: Server;
 
   beforeEach(async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -46,17 +46,29 @@ describe("createServer over an in-memory transport", () => {
     expect(result.content).toEqual([{ type: "text", text: JSON.stringify({ message: "hi" }) }]);
   });
 
-  it("rejects an invalid echo argument before the handler runs", async () => {
+  it("rejects an invalid echo argument before the handler runs, as a structured ToolError", async () => {
     const result = await client.callTool({ name: "echo", arguments: { message: "" } });
     expect(result.isError).toBe(true);
-    expect(result.structuredContent).toBeUndefined();
-    expect(JSON.stringify(result.content)).toMatch(/validation/i);
+    expect(result.structuredContent).toEqual({
+      code: ToolErrorCode.INVALID_INPUT,
+      field: "message",
+      message: 'message must be at least 1 characters, received "" (0)',
+    });
+    expect(result.content).toEqual([
+      { type: "text", text: 'message must be at least 1 characters, received "" (0)' },
+    ]);
+  });
+
+  it("rejects an unknown tool name", async () => {
+    await expect(client.callTool({ name: "not_a_real_tool", arguments: {} })).rejects.toThrow(
+      /not found/i,
+    );
   });
 });
 
 describe("createServer error handling and schema extensions", () => {
   let client: Client;
-  let server: McpServer;
+  let server: Server;
 
   const testTools = [
     defineTool({
@@ -172,7 +184,7 @@ describe("createServer error handling and schema extensions", () => {
 
 describe("stub tools over an in-memory transport", () => {
   let client: Client;
-  let server: McpServer;
+  let server: Server;
 
   beforeEach(async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

@@ -228,6 +228,9 @@ importers:
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+      zod-to-json-schema:
+        specifier: ^3.24.5
+        version: 3.25.2(zod@3.25.76)
     devDependencies:
       '@types/node':
         specifier: ^22.13.10
@@ -268,7 +271,7 @@ importers:
         version: 3.25.76
       zod-to-json-schema:
         specifier: ^3.24.5
-        version: 3.25.2(zod@4.5.4)
+        version: 3.25.2(zod@3.25.76)
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.1.4
@@ -3447,10 +3450,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
-
-  zod-to-json-schema@3.25.2(zod@4.5.4):
-    dependencies:
-      zod: 4.5.4
 
   zod@3.25.76: {}
 
