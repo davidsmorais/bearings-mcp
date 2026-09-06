@@ -17,6 +17,7 @@ export const TimeWindowSchema = z
     (data) => data.end >= data.start,
     (data) => ({
       message: `end must be on or after start, received end "${data.end}" with start "${data.start}"`,
+      path: ["end"],
     }),
   )
   .refine(
@@ -25,6 +26,7 @@ export const TimeWindowSchema = z
       const nights = nightsBetween(data.start, data.end);
       return {
         message: `time window must span at most ${MAX_STAY_NIGHTS} nights, received ${nights} nights (start "${data.start}", end "${data.end}")`,
+        path: ["end"],
       };
     },
   );

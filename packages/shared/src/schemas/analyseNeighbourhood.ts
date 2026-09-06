@@ -43,6 +43,7 @@ export const AnalyseNeighbourhoodInputSchema = z
     (data) => new Set(data.categories).size === data.categories.length,
     (data) => ({
       message: `categories must contain unique values, received [${data.categories.join(", ")}]`,
+      path: ["categories"],
     }),
   );
 

@@ -58,7 +58,7 @@ describe("zodErrorToToolError", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const error = zodErrorToToolError(result.error, input);
-      expect(error.field).toBe("");
+      expect(error.field).toBe("end");
       expect(error.message).toBe(
         `time window must span at most ${MAX_STAY_NIGHTS} nights, received 45 nights (start "2026-01-01", end "2026-02-15")`,
       );
