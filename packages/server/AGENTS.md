@@ -48,3 +48,42 @@ packages/server/src/
 ## Testing notes for this package
 
 Follows the root testing philosophy exactly. The server-specific fixtures live in `packages/server/test/fixtures/`, one captured response per upstream. When an upstream API response shape changes, update the fixture and note it as a `MEMORY.md` entry, since a silently stale fixture is worse than no fixture.
+
+Tests live in `packages/server/test/`. `vitest.config.ts` scans both `src/**/*.test.ts` and `test/**/*.test.ts`; `passWithNoTests` is `false`, so a suite that collected nothing fails. Type-checking test files is a separate pass — `tsconfig.json` builds only `src/` into `dist/`, and `tsconfig.test.json` (no emit) is what covers `test/`. The `typecheck` script runs both.
+
+---
+
+## stdio transport: stdout is the JSON-RPC channel
+
+`transports/stdio.ts` speaks JSON-RPC over stdout. **Anything else written to stdout corrupts the framing and the client silently disconnects** — no `console.log`, no `process.stdout.write`, no stray `print`. All diagnostics go to `console.error` (stderr). This is why `src/index.ts` carries no top-level statements.
+
+### Running it locally / wiring Claude Desktop
+
+```bash
+pnpm install
+pnpm -r run build          # stdio.ts compiles to packages/server/dist/transports/stdio.js
+```
+
+Claude Desktop config (`claude_desktop_config.json`) — the path must be absolute and the build must exist first:
+
+```json
+{
+  "mcpServers": {
+    "bearings": {
+      "command": "node",
+      "args": ["/absolute/path/to/bearings-mcp/packages/server/dist/transports/stdio.js"]
+    }
+  }
+}
+```
+
+Smoke-test without a client by piping frames in:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"echo","arguments":{"message":"hi"}}}' \
+  | node packages/server/dist/transports/stdio.js
+```

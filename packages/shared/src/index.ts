@@ -1,2 +1,2 @@
-export type { Coordinates, Place } from "./schemas.js";
-export { CoordinatesSchema, PlaceSchema } from "./schemas.js";
+export type { Coordinates, EchoInput, Place } from "./schemas.js";
+export { CoordinatesSchema, EchoInputSchema, PlaceSchema } from "./schemas.js";

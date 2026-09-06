@@ -5,14 +5,20 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "bearings-mcp": "./dist/transports/stdio.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/index.js"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "start": "node dist/transports/stdio.js"
   },
   "dependencies": {
-    "@bearings/shared": "workspace:*"
+    "@bearings/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
