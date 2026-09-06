@@ -11,10 +11,12 @@
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check": "biome check ."
+    "check": "biome check .",
+    "knip": "knip"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "knip": "^6.34.0",
     "typescript": "^5.8.2"
   }
 }

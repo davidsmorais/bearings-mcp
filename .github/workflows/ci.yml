@@ -31,6 +31,9 @@ jobs:
       - name: Lint (Biome)
         run: pnpm lint
 
+      - name: Knip (dead code & dependency audit)
+        run: pnpm knip
+
       # @bearings/shared exports dist/; server/web typecheck and tests need it built.
       - name: Build
         run: pnpm build

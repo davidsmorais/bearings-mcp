@@ -20,6 +20,7 @@
   - **`echo` is exempt from the "every tool accepts `detail: brief|full`" rule** (server `AGENTS.md`) — it is a diagnostic with nothing to shape. Not a precedent for the real tools.
   - stdio stdout is the JSON-RPC channel — all diagnostics go to stderr; `src/index.ts` has no top-level statements. Tests live in `packages/server/test/`, typechecked via `tsconfig.test.json` (the `typecheck` script runs both configs).
 - **`typecheck` script now exists repo-wide**: `pnpm typecheck` → `pnpm -r run typecheck` → `tsc --noEmit` across all workspace packages (`shared`, `server` with both configs, and `web`). Root `pnpm lint` may be intercepted by a local tool wrapper that mislabels output — run `./node_modules/.bin/biome check .` directly to be certain.
+- **`knip` configured repo-wide (2026-09-06)**: Monorepo cleanliness tool installed at root (`knip.json`). Verifies unused files, dependencies, and non-entry exports across `packages/shared`, `packages/server`, and `packages/web`. Wired to root `pnpm knip` script and validated in GitHub Actions CI right after Biome linting.
 - **Active Invariant Enforcement**:
   - `packages/shared` is the sole source for Zod input schemas and domain types.
   - `packages/server/src/registry.ts` is the single source for tool registration.

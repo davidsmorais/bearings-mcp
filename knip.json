@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/overview.json",
+  "workspaces": {
+    ".": {},
+    "packages/shared": {
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/server": {
+      "project": ["src/**/*.ts!", "test/**/*.ts"]
+    },
+    "packages/web": {
+      "project": ["src/**/*.{ts,tsx}!"]
+    }
+  }
+}
