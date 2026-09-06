@@ -12,7 +12,8 @@ This is the most sensitive package in the repo relative to its size. Both the se
 packages/shared/src/
   schemas/              Zod input schemas, one per tool
   types/                 domain types: Location, Coordinates, TimeWindow, PoiCategory
-  errors.ts              the ToolError discriminated union
+  errors.ts              ToolErrorCode enum + discriminated union + per-code constructors
+  toToolError.ts         zodErrorToToolError + toToolError (unknown-throw mapper)
   index.ts               barrel export — everything server and web import from
 ```
 
@@ -26,6 +27,7 @@ packages/shared/src/
 - **Error codes are additive, not renamed.** If a new failure mode needs a code, add one to the `ToolError` union. Don't rename or repurpose an existing code — both consumers pattern-match on the literal string.
 - **Every exported schema needs a domain type it validates into**, and the type name should read naturally in a tool response (`Location`, not `NominatimResult`). This package is the boundary where upstream vocabulary stops and domain vocabulary starts.
 - **No business logic.** Density thresholds, classification rules, and cache TTLs are server concerns and belong in `packages/server/src/analysis` or `http/`, even though they're informed by types defined here.
+- **No `.transform()` on input schema fields.** Transforms do not survive `zod-to-json-schema`, so the inspector form generator renders wrong defaults and types. Coerce or validate at the schema level instead.
 
 ---
 
@@ -36,7 +38,7 @@ Keep the shape consistent so the web package's form generator has nothing unusua
 ```ts
 export const analyseNeighbourhoodInput = z.object({
   coordinates: coordinatesSchema,
-  radiusM: z.number().int().min(100).max(2000).default(500),
+  radiusM: z.number().int().min(100).max(5000).default(500),
   detail: z.enum(["brief", "full"]).default("brief"),
 });
 ```
