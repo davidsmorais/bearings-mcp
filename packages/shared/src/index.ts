@@ -25,6 +25,8 @@ export type { Coordinates } from "./types/coordinates.js";
 export { CoordinatesSchema } from "./types/coordinates.js";
 export type { CountryCode } from "./types/countryCode.js";
 export { CountryCodeSchema } from "./types/countryCode.js";
+export type { Holiday } from "./types/holiday.js";
+export { HolidaySchema } from "./types/holiday.js";
 export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
 export type { PoiCategory } from "./types/poiCategory.js";
