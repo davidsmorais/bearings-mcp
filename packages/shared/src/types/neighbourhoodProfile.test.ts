@@ -52,7 +52,7 @@ const makeDomainProfile = (ratingOverrides?: Parameters<typeof makeDomainRating>
 
 const credits = { consumed: 1, byDomain: { nightlife: 1 } } as const;
 
-/** Every profile now needs a `credits` block; supply a valid default the case can override. */
+/** Every profile needs a `credits` block; supply a valid default the case can override. */
 const parseProfile = (profile: Record<string, unknown>) =>
   NeighbourhoodProfileSchema.safeParse({ credits, ...profile });
 
