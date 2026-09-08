@@ -1,25 +1,23 @@
 import {
   type Coordinates,
   internalError,
+  invalidInput,
   isToolError,
   type PoiCategory,
   type PointOfInterest,
   type ToolError,
 } from "@bearings/shared";
+import {
+  GEOAPIFY_CATEGORY_STRINGS,
+  poiCategoryForGeoapifyCategories,
+} from "../analysis/categoryAdapter.js";
 import { getHttpCore, type HttpCore, type RequestMeta } from "../http/index.js";
 
 const PLACES_PATH = "/v2/places";
 
-/** Maps domain POI categories to Geoapify category keys used by the analysis layer. */
-const GEOAPIFY_CATEGORIES: Record<PoiCategory, readonly string[]> = {
-  dining: ["catering.restaurant"],
-  cafes: ["catering.cafe"],
-  nightlife: ["catering.bar", "catering.pub"],
-  groceries: ["commercial.supermarket"],
-  transit: ["public_transport"],
-  parks: ["leisure.park"],
-  culture: ["entertainment.culture", "entertainment.museum", "tourism.attraction"],
-};
+// Match openMeteo.ts: coordinates are sent (and cache-keyed) at 4 dp (~11 m) so
+// sub-metre float jitter between callers doesn't fragment the cache.
+const COORDINATE_DP = 4;
 
 interface GeoapifyFeatureProperties {
   readonly name?: string;
@@ -28,6 +26,7 @@ interface GeoapifyFeatureProperties {
   readonly formatted?: string;
   readonly place_id?: string;
   readonly distance?: number;
+  readonly categories?: readonly string[];
 }
 
 interface GeoapifyFeature {
@@ -47,7 +46,12 @@ interface GeoapifyPlacesResponse {
 export interface SearchPlacesInput {
   readonly coordinates: Coordinates;
   readonly radiusM: number;
-  readonly category: PoiCategory;
+  /**
+   * One or more POI categories to union into a single request. Geoapify accepts
+   * multiple categories per call and still bills per 20 places returned, so a
+   * multi-category domain query stays one credit bucket, not one per category.
+   */
+  readonly categories: readonly PoiCategory[];
   // Geoapify bills 1 credit per 20 places, so limit is a cost lever, not just a page size.
   readonly limit: number;
   readonly signal?: AbortSignal;
@@ -62,14 +66,16 @@ export interface GeoapifyClientDeps {
   readonly core?: HttpCore;
 }
 
+const roundCoordinate = (value: number): string => value.toFixed(COORDINATE_DP);
+
 const buildCircleFilter = (coordinates: Coordinates, radiusM: number): string =>
-  `circle:${coordinates.lon},${coordinates.lat},${radiusM}`;
+  `circle:${roundCoordinate(coordinates.lon)},${roundCoordinate(coordinates.lat)},${radiusM}`;
 
 const buildProximityBias = (coordinates: Coordinates): string =>
-  `proximity:${coordinates.lon},${coordinates.lat}`;
+  `proximity:${roundCoordinate(coordinates.lon)},${roundCoordinate(coordinates.lat)}`;
 
-const toGeoapifyCategories = (category: PoiCategory): string =>
-  GEOAPIFY_CATEGORIES[category].join(",");
+const toGeoapifyCategories = (categories: readonly PoiCategory[]): string =>
+  [...new Set(categories.flatMap((category) => GEOAPIFY_CATEGORY_STRINGS[category]))].join(",");
 
 const readCoordinates = (feature: GeoapifyFeature): Coordinates | undefined => {
   const fromProperties = feature.properties;
@@ -92,7 +98,7 @@ const readCoordinates = (feature: GeoapifyFeature): Coordinates | undefined => {
 
 const normaliseFeature = (
   feature: GeoapifyFeature,
-  category: PoiCategory,
+  fallbackCategory: PoiCategory,
 ): PointOfInterest | undefined => {
   const properties = feature.properties;
   const coordinates = readCoordinates(feature);
@@ -111,6 +117,10 @@ const normaliseFeature = (
 
   const address = properties?.formatted?.trim();
   const distanceM = properties?.distance;
+  // Tag each POI back to a single category from its own taxonomy array; a domain
+  // query unions several categories so the request-level category is only a fallback.
+  const category =
+    poiCategoryForGeoapifyCategories(properties?.categories ?? []) ?? fallbackCategory;
 
   return {
     id,
@@ -124,13 +134,13 @@ const normaliseFeature = (
 
 const normalisePlacesResponse = (
   body: GeoapifyPlacesResponse,
-  category: PoiCategory,
+  fallbackCategory: PoiCategory,
 ): readonly PointOfInterest[] => {
   const features = body.features ?? [];
   const places: PointOfInterest[] = [];
 
   for (const feature of features) {
-    const place = normaliseFeature(feature, category);
+    const place = normaliseFeature(feature, fallbackCategory);
     if (place !== undefined) {
       places.push(place);
     }
@@ -143,14 +153,19 @@ export async function searchPlaces(
   input: SearchPlacesInput,
   deps: GeoapifyClientDeps = {},
 ): Promise<SearchPlacesResult | ToolError> {
+  const { coordinates, radiusM, categories, limit, signal } = input;
+
+  if (categories.length === 0) {
+    return invalidInput("at least one category is required", "categories");
+  }
+
   const core = deps.core ?? getHttpCore();
-  const { coordinates, radiusM, category, limit, signal } = input;
 
   const response = await core.request<GeoapifyPlacesResponse>(
     "geoapify",
     PLACES_PATH,
     {
-      categories: toGeoapifyCategories(category),
+      categories: toGeoapifyCategories(categories),
       filter: buildCircleFilter(coordinates, radiusM),
       bias: buildProximityBias(coordinates),
       limit: String(limit),
@@ -164,7 +179,7 @@ export async function searchPlaces(
 
   try {
     return {
-      places: normalisePlacesResponse(response.data, category),
+      places: normalisePlacesResponse(response.data, categories[0]),
       meta: response.meta,
     };
   } catch {

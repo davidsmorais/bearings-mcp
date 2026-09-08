@@ -11,12 +11,30 @@
         "lon": 2.3522,
         "formatted": "Le Petit Bistro, 12 Rue de Rivoli, 75001 Paris, France",
         "place_id": "51f07665660fc4024059dc0a96dfac6c12345678",
-        "categories": ["catering.restaurant"],
+        "categories": ["catering", "catering.restaurant"],
         "distance": 120
       },
       "geometry": {
         "type": "Point",
         "coordinates": [2.3522, 48.8566]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Café de la Paix",
+        "country": "France",
+        "city": "Paris",
+        "lat": 48.857,
+        "lon": 2.3515,
+        "formatted": "Café de la Paix, 5 Place de l'Opéra, 75009 Paris, France",
+        "place_id": "51f076656610aa024059dc0a96dfac6c87654321",
+        "categories": ["catering", "catering.cafe"],
+        "distance": 80
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [2.3515, 48.857]
       }
     },
     {

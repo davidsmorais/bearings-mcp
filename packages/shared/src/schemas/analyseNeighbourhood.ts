@@ -22,13 +22,15 @@ export const AnalyseNeighbourhoodInputSchema = z
       .default([...PoiCategorySchema.options])
       .describe("POI categories to include in the neighbourhood profile"),
     // Geoapify bills 1 credit per 20 places, so this is a cost lever, not a page size.
+    // Capped at 20 (one credit bucket per domain) — a higher ceiling is a deliberate
+    // per-caller decision that needs its own sign-off, not the default path.
     limitPerCategory: z
       .number()
       .int()
       .min(1)
-      .max(100)
+      .max(20)
       .default(20)
-      .describe("Maximum places to fetch per category"),
+      .describe("Maximum places to fetch per category (max 20 = one Geoapify credit per domain)"),
     detail: z.enum(["brief", "full"]).default("brief"),
   })
   .refine(
