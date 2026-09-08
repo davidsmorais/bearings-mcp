@@ -126,6 +126,7 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(result.domains.dining?.rating).toBe("none");
     expect(result.sources.nightlife?.status).toBe("ok");
     expect(result.sources.dining?.status).toBe("ok");
+    expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
     // Two requests left the process even though both came back empty — both are billed.
     expect(result.credits.consumed).toBe(2);
     expect(result.credits.byDomain).toEqual({ nightlife: 1, dining: 1 });
@@ -169,6 +170,37 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(first.credits.consumed).toBe(2);
     expect(second.credits.consumed).toBe(0);
     expect(second.credits.byDomain).toEqual({ nightlife: 0, dining: 0 });
+  });
+
+  it("keeps a failed domain (absent) distinct from a cache-served domain (explicit 0)", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch((categories) => {
+      if (categories?.includes("catering.bar")) {
+        return new Response("boom", { status: 500 });
+      }
+      return jsonResponse({ type: "FeatureCollection", features: [] });
+    });
+    const core = createHttpCore({ fetch, clock: instantClock });
+
+    // Warm only the dining cache — nightlife is never queried successfully.
+    await analyseNeighbourhood(buildInput({ categories: ["dining"], detail: "full" }), { core });
+
+    // Now nightlife errors and dining is served from cache in the same call.
+    const result = await analyseNeighbourhood(
+      buildInput({ categories: ["nightlife", "dining"], detail: "full" }),
+      { core },
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+
+    // Failed domain: absent from byDomain entirely.
+    expect("nightlife" in result.credits.byDomain).toBe(false);
+    // Cache-served domain: present as an explicit 0.
+    expect(result.credits.byDomain.dining).toBe(0);
+    expect(result.credits.byDomain).toEqual({ dining: 0 });
+    expect(result.credits.consumed).toBe(0);
   });
 });
 
@@ -240,6 +272,9 @@ describe("analyseNeighbourhood — all domains fail", () => {
     expect(isToolError(result)).toBe(true);
     if (!isToolError(result)) return;
     expect(result.code).toBe(ToolErrorCode.QUOTA_EXCEEDED);
+    // An all-domains-fail ToolError carries no credit block — nothing was billed
+    // (deliberate choice, recorded in DECISIONS.md / MEMORY.md).
+    expect(result).not.toHaveProperty("credits");
   });
 });
 
