@@ -22,6 +22,13 @@ describe("analyseNeighbourhoodTool", () => {
     expect(analyseNeighbourhoodTool.description).toContain("sources");
   });
 
+  it("states that the response reports the Geoapify credits consumed", () => {
+    expect(analyseNeighbourhoodTool.description).toMatch(/reports the Geoapify credits consumed/i);
+    expect(analyseNeighbourhoodTool.description).toMatch(
+      /0 for a domain served from Geoapify's cache/i,
+    );
+  });
+
   it("delegates to analyseNeighbourhood with the caller signal", async () => {
     mockedAnalyseNeighbourhood.mockResolvedValue({
       detail: "brief",

@@ -30,6 +30,8 @@ vi.mock("./upstream/geoapify.js", async (importOriginal) => {
     searchPlaces: vi.fn(async () => ({
       places: [],
       meta: { hostId: "geoapify" as const, cacheHit: false, attempts: 1, durationMs: 0 },
+      // cacheHit: false ⇒ the request was billed one credit.
+      credits: 1,
     })),
   };
 });
@@ -235,9 +237,15 @@ describe("analyse_neighbourhood over an in-memory transport", () => {
       },
     });
     expect(result.isError).toBeFalsy();
-    const profile = result.structuredContent as { detail?: string; domains?: unknown };
+    const profile = result.structuredContent as {
+      detail?: string;
+      domains?: unknown;
+      credits?: { consumed?: number };
+    };
     expect(profile.detail).toBe("brief");
     expect(profile.domains).toBeDefined();
+    // The mocked searchPlaces reports credits: 1 (cacheHit: false); one domain queried.
+    expect(profile.credits?.consumed).toBe(1);
   });
 
   it("advertises a real tool description", async () => {

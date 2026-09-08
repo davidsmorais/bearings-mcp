@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { notFound, upstreamError } from "../errors.js";
-import { DomainRatingSchema, NeighbourhoodProfileSchema } from "./neighbourhoodProfile.js";
+import {
+  DomainRatingSchema,
+  NeighbourhoodCreditsSchema,
+  NeighbourhoodProfileSchema,
+} from "./neighbourhoodProfile.js";
 
 const locationFull = {
   name: "Bairro Alto",
@@ -46,6 +50,12 @@ const makeDomainProfile = (ratingOverrides?: Parameters<typeof makeDomainRating>
   samplePois: [samplePoi],
 });
 
+const credits = { consumed: 1, byDomain: { nightlife: 1 } } as const;
+
+/** Every profile needs a `credits` block; supply a valid default the case can override. */
+const parseProfile = (profile: Record<string, unknown>) =>
+  NeighbourhoodProfileSchema.safeParse({ credits, ...profile });
+
 const okSource = { status: "ok" as const };
 const unavailableSource = {
   status: "unavailable" as const,
@@ -54,7 +64,7 @@ const unavailableSource = {
 
 describe("NeighbourhoodProfileSchema — full arm", () => {
   it("accepts a complete profile with rated domains and sample POIs", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "full",
       location: locationFull,
       radiusM: 500,
@@ -70,7 +80,7 @@ describe("NeighbourhoodProfileSchema — full arm", () => {
   });
 
   it("accepts a none-rated domain with zero count", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "full",
       location: locationFull,
       radiusM: 500,
@@ -102,7 +112,7 @@ describe("NeighbourhoodProfileSchema — full arm", () => {
       samplePois: [] as [],
     };
 
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "full",
       location: locationFull,
       radiusM: 500,
@@ -120,7 +130,7 @@ describe("NeighbourhoodProfileSchema — full arm", () => {
   });
 
   it("accepts a null domain paired with an unavailable source", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "full",
       location: locationFull,
       radiusM: 500,
@@ -140,7 +150,7 @@ describe("NeighbourhoodProfileSchema — full arm", () => {
 
 describe("NeighbourhoodProfileSchema — brief arm", () => {
   it("accepts a projected brief profile without coordinates or sample POIs", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "brief",
       location: locationBrief,
       radiusM: 500,
@@ -156,7 +166,7 @@ describe("NeighbourhoodProfileSchema — brief arm", () => {
   });
 
   it("accepts a brief none-rated domain", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "brief",
       location: locationBrief,
       radiusM: 500,
@@ -178,7 +188,7 @@ describe("NeighbourhoodProfileSchema — brief arm", () => {
   });
 
   it("accepts a brief null domain with unavailable source", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "brief",
       location: locationBrief,
       radiusM: 500,
@@ -194,7 +204,7 @@ describe("NeighbourhoodProfileSchema — brief arm", () => {
   });
 
   it("rejects a brief profile that still carries samplePois", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "brief",
       location: locationBrief,
       radiusM: 500,
@@ -210,7 +220,7 @@ describe("NeighbourhoodProfileSchema — brief arm", () => {
   });
 
   it("rejects a brief location that still carries coordinates", () => {
-    const result = NeighbourhoodProfileSchema.safeParse({
+    const result = parseProfile({
       detail: "brief",
       location: locationFull,
       radiusM: 500,
@@ -253,5 +263,63 @@ describe("DomainRatingSchema", () => {
       count: -1,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("NeighbourhoodCreditsSchema", () => {
+  it("accepts a consumed total with a per-domain breakdown", () => {
+    const result = NeighbourhoodCreditsSchema.safeParse({
+      consumed: 5,
+      byDomain: { nightlife: 1, dining: 1, transit: 0, greenSpace: 1, retail: 1, culture: 1 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an empty byDomain — a record over the enum is partial", () => {
+    const result = NeighbourhoodCreditsSchema.safeParse({ consumed: 0, byDomain: {} });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a negative consumed total", () => {
+    const result = NeighbourhoodCreditsSchema.safeParse({ consumed: -1, byDomain: {} });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a fractional per-domain credit", () => {
+    const result = NeighbourhoodCreditsSchema.safeParse({
+      consumed: 1,
+      byDomain: { nightlife: 0.5 },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("NeighbourhoodProfileSchema — credits block", () => {
+  const base = {
+    detail: "full" as const,
+    location: locationFull,
+    radiusM: 500,
+    requestedCategories: ["nightlife"],
+    domains: { nightlife: makeDomainProfile() },
+    sources: { nightlife: okSource },
+  };
+
+  it("rejects a full profile with no credits block", () => {
+    expect(NeighbourhoodProfileSchema.safeParse(base).success).toBe(false);
+  });
+
+  it("rejects a brief profile with no credits block", () => {
+    const { coordinates: _c, ...briefLocation } = locationFull;
+    const result = NeighbourhoodProfileSchema.safeParse({
+      ...base,
+      detail: "brief",
+      location: briefLocation,
+      domains: { nightlife: makeDomainRating() },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a full profile once the credits block is present", () => {
+    expect(NeighbourhoodProfileSchema.safeParse({ ...base, credits }).success).toBe(true);
   });
 });

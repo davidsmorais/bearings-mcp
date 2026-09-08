@@ -15,6 +15,12 @@ import { getHttpCore, type HttpCore, type RequestMeta } from "../http/index.js";
 
 const PLACES_PATH = "/v2/places";
 
+export const GEOAPIFY_PLACES_PER_CREDIT = 20;
+
+/** Credits a Places response consumed: 0 on cache hit, else ceil(places / 20). */
+export const creditsForResponse = (cacheHit: boolean, returnedCount: number): number =>
+  cacheHit ? 0 : Math.ceil(returnedCount / GEOAPIFY_PLACES_PER_CREDIT);
+
 // Match openMeteo.ts: coordinates are sent (and cache-keyed) at 4 dp (~11 m) so
 // sub-metre float jitter between callers doesn't fragment the cache.
 const COORDINATE_DP = 4;
@@ -60,6 +66,8 @@ export interface SearchPlacesInput {
 export interface SearchPlacesResult {
   readonly places: readonly PointOfInterest[];
   readonly meta: RequestMeta;
+  /** Geoapify credits this request consumed — 0 on a cache hit, else ceil(places / 20). */
+  readonly credits: number;
 }
 
 export interface GeoapifyClientDeps {
@@ -178,9 +186,11 @@ export async function searchPlaces(
   }
 
   try {
+    const places = normalisePlacesResponse(response.data, categories[0]);
     return {
-      places: normalisePlacesResponse(response.data, categories[0]),
+      places,
       meta: response.meta,
+      credits: creditsForResponse(response.meta.cacheHit, places.length),
     };
   } catch {
     return internalError("Failed to normalise Geoapify places response");
