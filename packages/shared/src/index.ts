@@ -29,6 +29,8 @@ export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
 export type { PoiCategory } from "./types/poiCategory.js";
 export { PoiCategorySchema } from "./types/poiCategory.js";
+export type { PointOfInterest } from "./types/pointOfInterest.js";
+export { PointOfInterestSchema } from "./types/pointOfInterest.js";
 export type { TimeWindow } from "./types/timeWindow.js";
 export { MAX_STAY_NIGHTS, TimeWindowSchema } from "./types/timeWindow.js";
 

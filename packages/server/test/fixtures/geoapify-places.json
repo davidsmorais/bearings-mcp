@@ -1,0 +1,36 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Le Petit Bistro",
+        "country": "France",
+        "city": "Paris",
+        "lat": 48.8566,
+        "lon": 2.3522,
+        "formatted": "Le Petit Bistro, 12 Rue de Rivoli, 75001 Paris, France",
+        "place_id": "51f07665660fc4024059dc0a96dfac6c12345678",
+        "categories": ["catering.restaurant"],
+        "distance": 120
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [2.3522, 48.8566]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "",
+        "lat": 48.857,
+        "lon": 2.353,
+        "place_id": "missing-name-should-be-skipped"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [2.353, 48.857]
+      }
+    }
+  ]
+}
