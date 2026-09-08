@@ -1,4 +1,5 @@
 import { isToolError, type ToolError, toToolError, zodErrorToToolError } from "@bearings/shared";
+import { estimateTokens, TOKENIZER_ENCODING } from "@bearings/shared/tokens";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -16,11 +17,37 @@ function toolErrorToStructuredContent(error: ToolError): Record<string, unknown>
   return error as unknown as Record<string, unknown>;
 }
 
+/** `_meta` key an approximate per-response token count rides on (Phase 2, DMS-501). */
+const TOKEN_META_KEY = "bearings/tokens";
+
+/**
+ * `structuredContent` serialises to the identical JSON as `content[0].text` whenever a
+ * handler returns a plain object, since the MCP spec recommends sending both for
+ * compatibility. That means a host forwarding both to the model actually spends
+ * `contentTokens * 2` — the honest worst case, not `contentTokens` alone. This is
+ * computed from the already-serialised text so it applies uniformly to every tool and
+ * to errors, without touching a single domain schema.
+ */
+function tokenMeta(text: string, hasStructuredContent: boolean): Record<string, unknown> {
+  const contentTokens = estimateTokens(text);
+  return {
+    [TOKEN_META_KEY]: {
+      approximate: true,
+      tokenizer: TOKENIZER_ENCODING,
+      contentTokens,
+      structuredContentDuplicated: hasStructuredContent,
+      worstCaseTokens: hasStructuredContent ? contentTokens * 2 : contentTokens,
+    },
+  };
+}
+
 function errorResult(error: ToolError): CallToolResult {
+  const text = error.message;
   return {
     isError: true,
-    content: [{ type: "text", text: error.message }],
+    content: [{ type: "text", text }],
     structuredContent: toolErrorToStructuredContent(error),
+    _meta: tokenMeta(text, true),
   };
 }
 
@@ -97,6 +124,7 @@ export function createServer(
           content: [{ type: "text", text }],
           // structuredContent must be an object per the MCP spec.
           ...(isPlainObject ? { structuredContent: value as Record<string, unknown> } : {}),
+          _meta: tokenMeta(text, isPlainObject),
         };
       } catch (error) {
         return errorResult(toToolError(error, parsed.data));

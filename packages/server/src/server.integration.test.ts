@@ -19,6 +19,20 @@ import { defineTool } from "./tools/defineTool.js";
 import { composeDestinationBrief } from "./tools/getDestinationBrief.js";
 import { resolveDestination } from "./upstream/nominatim.js";
 
+/** `_meta` key the approximate per-response token count rides on (Phase 2, DMS-501). */
+const TOKEN_META_KEY = "bearings/tokens";
+
+interface TokenMeta {
+  readonly approximate: boolean;
+  readonly tokenizer: string;
+  readonly contentTokens: number;
+  readonly structuredContentDuplicated: boolean;
+  readonly worstCaseTokens: number;
+}
+
+const tokenMetaOf = (result: { _meta?: Record<string, unknown> }): TokenMeta =>
+  result._meta?.[TOKEN_META_KEY] as TokenMeta;
+
 vi.mock("./upstream/nominatim.js", () => ({
   resolveDestination: vi.fn(),
 }));
@@ -74,6 +88,13 @@ describe("createServer over an in-memory transport", () => {
     const result = await client.callTool({ name: "echo", arguments: { message: "hi" } });
     expect(result.structuredContent).toEqual({ message: "hi" });
     expect(result.content).toEqual([{ type: "text", text: JSON.stringify({ message: "hi" }) }]);
+
+    const meta = tokenMetaOf(result);
+    expect(meta.approximate).toBe(true);
+    expect(meta.tokenizer).toBe("o200k_base");
+    expect(meta.contentTokens).toBeGreaterThan(0);
+    expect(meta.structuredContentDuplicated).toBe(true);
+    expect(meta.worstCaseTokens).toBe(meta.contentTokens * 2);
   });
 
   it("rejects an invalid echo argument before the handler runs, as a structured ToolError", async () => {
@@ -87,6 +108,12 @@ describe("createServer over an in-memory transport", () => {
     expect(result.content).toEqual([
       { type: "text", text: 'message must be at least 1 characters, received "" (0)' },
     ]);
+
+    // A failure carries a token cost too — an agent (and the inspector) can see it.
+    const meta = tokenMetaOf(result);
+    expect(meta.approximate).toBe(true);
+    expect(meta.contentTokens).toBeGreaterThan(0);
+    expect(meta.structuredContentDuplicated).toBe(true);
   });
 
   it("rejects an unknown tool name", async () => {
@@ -135,6 +162,12 @@ describe("createServer error handling and schema extensions", () => {
       handler: (_input, context) => {
         return { hasSignal: context?.signal !== undefined };
       },
+    }),
+    defineTool({
+      name: "returnsString",
+      description: "Returns a bare string, not an object.",
+      inputSchema: z.object({}),
+      handler: () => "just a string",
     }),
   ];
 
@@ -210,6 +243,18 @@ describe("createServer error handling and schema extensions", () => {
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual({ hasSignal: true });
   });
+
+  it("reports structuredContentDuplicated: false when the handler returns a non-object", async () => {
+    const result = await client.callTool({ name: "returnsString", arguments: {} });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toBeUndefined();
+    expect(result.content).toEqual([{ type: "text", text: "just a string" }]);
+
+    const meta = tokenMetaOf(result);
+    expect(meta.approximate).toBe(true);
+    expect(meta.structuredContentDuplicated).toBe(false);
+    expect(meta.worstCaseTokens).toBe(meta.contentTokens);
+  });
 });
 
 describe("analyse_neighbourhood over an in-memory transport", () => {
@@ -246,6 +291,11 @@ describe("analyse_neighbourhood over an in-memory transport", () => {
     expect(profile.domains).toBeDefined();
     // The mocked searchPlaces reports credits: 1 (cacheHit: false); one domain queried.
     expect(profile.credits?.consumed).toBe(1);
+
+    const meta = tokenMetaOf(result);
+    expect(meta.approximate).toBe(true);
+    expect(meta.contentTokens).toBeGreaterThan(0);
+    expect(meta.structuredContentDuplicated).toBe(true);
   });
 
   it("advertises a real tool description", async () => {
