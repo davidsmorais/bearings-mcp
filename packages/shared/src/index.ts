@@ -49,6 +49,8 @@ export type { Holiday } from "./types/holiday.js";
 export { HolidaySchema } from "./types/holiday.js";
 export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
+export type { NeighbourhoodDomain } from "./types/neighbourhoodDomain.js";
+export { NeighbourhoodDomainSchema } from "./types/neighbourhoodDomain.js";
 export type { PoiCategory } from "./types/poiCategory.js";
 export { PoiCategorySchema } from "./types/poiCategory.js";
 export type { PointOfInterest } from "./types/pointOfInterest.js";
