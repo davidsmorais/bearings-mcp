@@ -28,9 +28,15 @@ export const DomainRatingSchema = z.object({
 
 export type DomainRating = z.infer<typeof DomainRatingSchema>;
 
-/** Full domain profile: the rating evidence plus sample POIs for human inspection. */
+/**
+ * Full domain profile: the rating evidence plus sample POIs for human inspection.
+ * `.max(10)` is a response bound, not an input bound — it caps nothing that costs
+ * money or admits bad input, so widening it (5 → 10, DMS-501) is exactly the trade
+ * `full` exists to make. `full` returning ten samples doesn't mean a richer window on
+ * a domain that never returned more than a handful — twenty places already yield ten.
+ */
 export const DomainProfileSchema = DomainRatingSchema.extend({
-  samplePois: z.array(PointOfInterestSchema).max(5),
+  samplePois: z.array(PointOfInterestSchema).max(10),
 });
 
 export type DomainProfile = z.infer<typeof DomainProfileSchema>;
@@ -39,9 +45,11 @@ export type DomainProfile = z.infer<typeof DomainProfileSchema>;
  * Geoapify credits the call consumed (root Invariant 6: a derived number carries
  * its evidence). `consumed` is the sum of `byDomain`'s values. A domain whose
  * query failed is absent from `byDomain` and contributes nothing; a cache-served
- * domain appears as `0`. Under per-request Geoapify billing every present value
- * is `0` or `1`, but `byDomain` still records which domains were billed, cached,
- * or failed. `z.record` over the domain enum infers a partial record.
+ * domain appears as `0`. Under per-20 Geoapify billing (`ceil(returnedCount / 20)`,
+ * restored in `cffa7e5`) a present value ranges `0`–`2` — `2` only when `detail: "full"`
+ * opts into the raised `limitPerCategory` ceiling (DMS-501) — but `byDomain` always
+ * records which domains were billed, cached, or failed regardless of the value's range.
+ * `z.record` over the domain enum infers a partial record.
  */
 export const NeighbourhoodCreditsSchema = z.object({
   consumed: z.number().int().min(0),

@@ -21,7 +21,11 @@ import { classifyDomain } from "./classifyDensity.js";
 import { worstOfErrors } from "./errorSeverity.js";
 import { partitionByRing, ringsWithin } from "./rings.js";
 
-const SAMPLE_POI_LIMIT = 5;
+// `toBriefDetail` drops `samplePois` outright, so this only ever affects `full` — no
+// per-detail branching needed or wanted. Raised 5 → 10 (DMS-501): with
+// `limitPerCategory` reaching 40, five samples out of forty is a thinner window than
+// five out of twenty was, and `full` exists to trade credits for depth.
+const SAMPLE_POI_LIMIT = 10;
 
 export interface AnalyseNeighbourhoodDeps {
   readonly core?: HttpCore;
