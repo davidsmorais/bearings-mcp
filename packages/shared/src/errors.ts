@@ -1,4 +1,4 @@
-import type { Location } from "./types/location.js";
+import type { LocationCandidate } from "./types/resolvedLocation.js";
 
 /**
  * Canonical error codes for Bearings MCP tools.
@@ -28,7 +28,7 @@ export type ToolError =
       readonly isError?: true;
       readonly code: ToolErrorCode.AMBIGUOUS;
       readonly message: string;
-      readonly candidates: readonly Location[];
+      readonly candidates: readonly LocationCandidate[];
       readonly details?: Record<string, unknown>;
     }
   | {
@@ -139,7 +139,7 @@ export function invalidInput(message: string, field: string): ToolError {
   return { code: ToolErrorCode.INVALID_INPUT, message, field };
 }
 
-export function ambiguous(message: string, candidates: readonly Location[]): ToolError {
+export function ambiguous(message: string, candidates: readonly LocationCandidate[]): ToolError {
   return { code: ToolErrorCode.AMBIGUOUS, message, candidates };
 }
 

@@ -23,18 +23,33 @@ describe("errors", () => {
     expect(isToolError(error)).toBe(true);
   });
 
-  it("ambiguous carries candidate locations", () => {
+  it("ambiguous carries ranked location candidates", () => {
     const candidates = [
       {
-        name: "Paris",
-        coordinates: { lat: 48.8566, lon: 2.3522 },
-        countryCode: "FR",
+        location: {
+          name: "Springfield",
+          coordinates: { lat: 39.7990175, lon: -89.6439575 },
+          countryCode: "US",
+          admin: { state: "Illinois", county: "Sangamon County", municipality: "Springfield" },
+        },
+        importance: 0.61,
+        kind: "city" as const,
+      },
+      {
+        location: {
+          name: "Springfield",
+          coordinates: { lat: 37.2081729, lon: -93.2922715 },
+          countryCode: "US",
+          admin: { state: "Missouri", county: "Greene County", municipality: "Springfield" },
+        },
+        importance: 0.6,
+        kind: "city" as const,
       },
     ];
-    const error = ambiguous("multiple matches for Paris", candidates);
+    const error = ambiguous("multiple matches for Springfield", candidates);
     expect(error).toEqual({
       code: ToolErrorCode.AMBIGUOUS,
-      message: "multiple matches for Paris",
+      message: "multiple matches for Springfield",
       candidates,
     });
     expect(isToolError(error)).toBe(true);

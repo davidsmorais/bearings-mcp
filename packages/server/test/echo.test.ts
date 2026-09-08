@@ -4,7 +4,6 @@ import { tools } from "../src/registry.js";
 import { analyseNeighbourhoodTool } from "../src/tools/analyseNeighbourhood.js";
 import { echoTool } from "../src/tools/echo.js";
 import { getDestinationBriefTool } from "../src/tools/getDestinationBrief.js";
-import { resolveDestinationTool } from "../src/tools/resolveDestination.js";
 
 describe("echoTool", () => {
   it("is registered under the name 'echo'", () => {
@@ -26,18 +25,6 @@ describe("echoTool", () => {
 });
 
 describe("stub tools", () => {
-  it("resolve_destination returns INTERNAL_ERROR", async () => {
-    const result = await resolveDestinationTool.handler({
-      query: "Paris",
-      limit: 5,
-      detail: "brief",
-    });
-    expect(result).toEqual({
-      code: ToolErrorCode.INTERNAL_ERROR,
-      message: "resolve_destination is not implemented yet",
-    });
-  });
-
   it("get_destination_brief returns INTERNAL_ERROR", async () => {
     const result = await getDestinationBriefTool.handler({
       location: {
@@ -68,7 +55,7 @@ describe("stub tools", () => {
     });
   });
 
-  it.each([resolveDestinationTool, getDestinationBriefTool, analyseNeighbourhoodTool] as const)(
+  it.each([getDestinationBriefTool, analyseNeighbourhoodTool] as const)(
     "stub description for %s begins with Not yet implemented",
     (tool) => {
       expect(tool.description).toMatch(/^Not yet implemented — /);
