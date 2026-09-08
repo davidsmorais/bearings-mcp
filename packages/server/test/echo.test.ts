@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { tools } from "../src/registry.js";
 import { analyseNeighbourhoodTool } from "../src/tools/analyseNeighbourhood.js";
 import { echoTool } from "../src/tools/echo.js";
-import { getDestinationBriefTool } from "../src/tools/getDestinationBrief.js";
 import { resolveDestinationTool } from "../src/tools/resolveDestination.js";
 
 describe("echoTool", () => {
@@ -38,22 +37,6 @@ describe("stub tools", () => {
     });
   });
 
-  it("get_destination_brief returns INTERNAL_ERROR", async () => {
-    const result = await getDestinationBriefTool.handler({
-      location: {
-        name: "Paris",
-        coordinates: { lat: 48.8566, lon: 2.3522 },
-        countryCode: "FR",
-      },
-      stay: { start: "2026-06-01", end: "2026-06-07" },
-      detail: "brief",
-    });
-    expect(result).toEqual({
-      code: ToolErrorCode.INTERNAL_ERROR,
-      message: "get_destination_brief is not implemented yet",
-    });
-  });
-
   it("analyse_neighbourhood returns INTERNAL_ERROR", async () => {
     const result = await analyseNeighbourhoodTool.handler({
       coordinates: { lat: 48.8566, lon: 2.3522 },
@@ -68,7 +51,7 @@ describe("stub tools", () => {
     });
   });
 
-  it.each([resolveDestinationTool, getDestinationBriefTool, analyseNeighbourhoodTool] as const)(
+  it.each([resolveDestinationTool, analyseNeighbourhoodTool] as const)(
     "stub description for %s begins with Not yet implemented",
     (tool) => {
       expect(tool.description).toMatch(/^Not yet implemented — /);

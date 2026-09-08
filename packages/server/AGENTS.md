@@ -105,7 +105,7 @@ if (isToolError(res)) return res;
 
 Follows the root testing philosophy exactly. The server-specific fixtures live in `packages/server/test/fixtures/`, one captured response per upstream. When an upstream API response shape changes, update the fixture and note it as a `MEMORY.md` entry, since a silently stale fixture is worse than no fixture.
 
-Tests live in `packages/server/test/`. `vitest.config.ts` scans both `src/**/*.test.ts` and `test/**/*.test.ts`; `passWithNoTests` is `false`, so a suite that collected nothing fails. Type-checking test files is a separate pass — `tsconfig.json` builds only `src/` into `dist/`, and `tsconfig.test.json` (no emit) is what covers `test/`. The `typecheck` script runs both.
+Tests live in `packages/server/test/` — **except** handler/unit tests, which colocate next to the code as `src/tools/<tool>.test.ts` (the way `packages/shared` colocates its `*.test.ts`). `test/` keeps integration tests and the committed upstream fixtures. `vitest.config.ts` scans both `src/**/*.test.ts` and `test/**/*.test.ts`; `passWithNoTests` is `false`, so a suite that collected nothing fails. Type-checking test files is a separate pass — `tsconfig.json` builds only `src/` into `dist/` (it excludes `src/**/*.test.ts`), and `tsconfig.test.json` (no emit) covers both `src/` and `test/`. The `typecheck` script runs both configs.
 
 ---
 

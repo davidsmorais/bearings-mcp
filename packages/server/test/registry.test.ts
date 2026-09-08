@@ -1,3 +1,4 @@
+import { toolInputSchemas } from "@bearings/shared";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { assertUniqueToolNames, tools } from "../src/registry.js";
@@ -12,6 +13,12 @@ describe("registry", () => {
       expect(typeof tool.inputSchema.safeParse).toBe("function");
       expect(typeof tool.handler).toBe("function");
     }
+  });
+
+  it("registers get_destination_brief exactly once with its shared input schema", () => {
+    const matches = tools.filter((tool) => tool.name === "get_destination_brief");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.inputSchema).toBe(toolInputSchemas.get_destination_brief);
   });
 
   it("passes validation when tool names are unique", () => {
