@@ -50,6 +50,53 @@
 
 ---
 
+## 🏙️ Neighbourhood density thresholds (DMS-499)
+
+*The answer to "why is this many venues `high`". `analyse_neighbourhood` groups the 7-value
+`PoiCategorySchema` into six domains, queries Geoapify once per domain at `input.radiusM`,
+partitions the returned POIs into walking rings client-side, and rates each domain by
+**venue density in venues/km²** — not raw count, so a rating is comparable across radii.*
+
+**Walking-ring ladder** — `WALKING_RADII_M = [250, 500, 1000]` m (`analysis/rings.ts`),
+≈ 3 / 6 / 12 min walk. `ringsWithin(radiusM)` keeps the ladder entries `≤ radiusM` and
+always appends `radiusM` itself as the outer ring. Counts are **cumulative** (a POI at
+300 m is in the 500 m and 1000 m rings). One Geoapify call per domain at the widest
+radius; inner rings cost no extra credits (Geoapify returns `distance` per feature).
+
+**`countCapped`** — `limitPerCategory` defaults to and is capped at **20** (1 Geoapify
+credit per domain; the `.max(100)`→`.max(20)` tightening is the one signed-off schema
+change, David 2026-09-08). When a domain returns the full `limitPerCategory`, its
+`DomainRating.countCapped` is `true`, `densityPerKm2` is a **lower bound**, and the
+classifier may only ever *raise* such a rating — a later uncapped call moves density up,
+never down, and the buckets are monotonic in density.
+
+**Thresholds** — the single named-constant block is `DENSITY_THRESHOLDS` in
+`analysis/thresholds.ts` (root Invariant 7); no density number lives anywhere else.
+Per-domain because a walkable dining scene and a walkable museum scene are different
+densities. `none` is count 0; otherwise `density >= high` → `high`, `>= medium` →
+`medium`, else `low`. `high` for every domain sits at or below **25.5 venues/km²** — the
+density a domain capped at 20 places still reports within a 500 m ring — so a genuinely
+dense but count-capped domain is never under-rated.
+
+| Domain | Dense reference (venues/km² @ 500 m) | Quiet reference | `medium` | `high` | Why |
+|---|---|---|---|---|---|
+| `nightlife` | Bairro Alto, Lisbon `38.7115,-9.1449` — sample saturates (≥25.5) | Cascais residential `38.7003,-9.4210` ≈ 1 | 8 | 20 | 20 bars inside a 6-min walk is unambiguously a nightlife district; residential grids sit near zero. |
+| `dining` | Baixa-Chiado `38.7108,-9.1394` — sample saturates (≥25.5) | quiet suburb ≈ 5 | 10 | 22 | Restaurants + cafés are the densest domain; `high` set just under the capped-sample ceiling. |
+| `transit` | central Lisbon metro/rail/bus ≈ 16 | suburban coverage ≈ 2 | 6 | 15 | A handful of stops within a 3-min walk already means "well connected". |
+| `greenSpace` | beside a major park ≈ 6 | elsewhere ≈ 1 | 2 | 5 | Municipal gardens are sparse even where present; one park inside the ring is meaningful. |
+| `retail` | retail core ≈ 16 | suburb ≈ 3 | 6 | 13 | Supermarkets and markets are a low-count domain; a cluster signals a shopping district. |
+| `culture` | museum / gallery quarter ≈ 14 | suburb ≈ 1 | 3 | 8 | Museums, galleries and cinemas concentrate heavily; a few in the ring marks a cultural quarter. |
+
+**Calibration status** — the reference readings above are **hand-derived estimates**, not
+live Geoapify measurements: the HTTP transport that would let `analyse_neighbourhood` run
+end-to-end does not exist yet (deferred with DMS-503 and the root `AGENTS.md` manual-review
+list). The committed fixture `packages/server/test/fixtures/geoapify-places.json` is
+likewise hand-built (synthetic `place_id`s). Re-calibrate against two named coordinates
+per domain — one dense, one quiet, at `radiusM: 500` — once a live run is possible; the
+classifier's "capped ratings only rise" guarantee holds regardless of the exact numbers.
+
+---
+
 ## 🔌 Upstream Rate Limit & Operational Constraints
 
 - **Nominatim IP Hard Limits**:
@@ -71,6 +118,13 @@
   - `detail: "brief"` (the default) is a **lossy `.strict()` projection** of the assembled `full` object — `toBriefDetail` drops `forecast.coordinates`, `forecast.requestedRange`, each `forecast.days[].weatherCode`, each `holidays[].countryCode`. `location` + `stay` stay at both levels. One set of upstream calls regardless of `detail`. `BriefForecastSchema` / `BriefHolidaySchema` are `.strict()` so a projection that forgets a field fails validation instead of silently passing it through.
   - The tool takes an already-resolved `Location` — it does **not** call `resolve_destination`. Forecast keys off `location.coordinates`, holidays off `location.countryCode`.
   - Its unit test is `packages/server/src/tools/getDestinationBrief.test.ts` (colocated with the handler per the now-repo-wide `<target>.test.ts` rule — see `packages/server/AGENTS.md`), mocked at the HTTP-core boundary, fixtures reused from `test/fixtures/`.
+- **`analyse_neighbourhood` composed & delivered (`DMS-499`, 2026-09-08)**: replaces the stub. `analysis/analyseNeighbourhood.ts` `analyseNeighbourhood(input, { core?, signal? })` → `NeighbourhoodProfile | ToolError`. New `packages/server/src/analysis/` layer: `categoryAdapter.ts` (7→6 domain grouping + the Geoapify category-string map, both directions — moved here from `upstream/geoapify.ts`, which imports it back), `rings.ts` (walking-ring ladder + cumulative partition), `density.ts` (venues/km²), `thresholds.ts` (the `DENSITY_THRESHOLDS` named block — see "Neighbourhood density thresholds" above), `classifyDensity.ts` (`DomainRating` assembly), `errorSeverity.ts` (`ERROR_SEVERITY` + `moreSevereError` + `worstOfErrors`, extracted from `getDestinationBrief.ts` which now imports it).
+  - Fans out **one** Geoapify query per requested domain via `Promise.allSettled` (never `Promise.all`), at `input.radiusM` with `limit: input.limitPerCategory` — one set of upstream calls regardless of `detail`. Each domain: `partitionByRing` → `classifyDomain` (`countCapped = returnedCount >= limitPerCategory`) → `DomainProfile` with `samplePois` = 5 nearest by `distanceM`.
+  - `sources` block keyed by the six domains, `SourceOutcome` shape (`{ status: "ok" | "partial" | "unavailable", note?, error? }`) — the type is now shared, moved out of `destinationBrief.ts` into `packages/shared/src/types/sourceOutcome.ts` (two consumers). A domain whose call fails → `domains[d] = null`, `sources[d].status = "unavailable"` carrying the `ToolError`; a `missingDistance > 0` partition → `status: "partial"`. **Every** domain failing → the `worstOfErrors`-reduced `ToolError` (a Geoapify quota surfaces as `QUOTA_EXCEEDED`, not a generic wrap). A rural coordinate where every domain returns `[]` → a valid all-`none` profile, every source `ok` — **not** an error.
+  - New shared output schema `packages/shared/src/types/neighbourhoodProfile.ts` — `DomainRatingSchema` (every field required — a rating without its `count`/`radiusM`/`rings` fails validation), `DomainProfileSchema` (`= DomainRating` + `samplePois`), `NeighbourhoodProfileSchema` = **discriminated union on `detail`**. `brief` is a lossy `.strict()` projection — drops `samplePois` and `location.coordinates`, keeps the full per-ring `rings` array / `count` / `radiusM` / `densityPerKm2` (that evidence is the point of the ticket). Handler `safeParse`s its own composed output before returning (the `get_destination_brief` pattern). `NeighbourhoodDomainSchema` and the profile schemas are **not** in `toolInputSchemas` (output-only).
+  - `z.record` over the `NeighbourhoodDomain` enum infers a **partial** record — reads of `domains[d]` / `sources[d]` are `T | undefined` in TS even though the composition always populates every requested domain.
+  - Tests: `analysis/*.test.ts` colocated per target; `analysis/analyseNeighbourhood.test.ts` + `tools/analyseNeighbourhood.test.ts` mocked at the HTTP-core boundary. The composition test's fake clock **advances on `sleep`** — a frozen `now()` starves the shared Geoapify rate limiter (capacity 5) once ≥ 6 acquires (2 domains × 3 retry attempts) drain it, since it only refills on elapsed time.
+  - `packages/web` unchanged and unverifiable end-to-end: the inspector only generates input forms from `toolInputSchemas` (submit is still disabled pending the HTTP transport, DMS-503) and consumes no output schema. The `analyse_neighbourhood` input form still renders — the only input change is `limitPerCategory` `.max(100)`→`.max(20)`.
 - **Nager.Date Multi-Year Boundaries**:
   - API accepts queries strictly per calendar year. A stay spanning December 31 to January 2 requires two parallel queries merged in the normaliser.
   - Unsupported country codes must return `NOT_FOUND`, never an empty array pretending to be a complete calendar.
