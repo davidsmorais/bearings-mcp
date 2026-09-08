@@ -5,7 +5,8 @@
     "packages/shared": {
       "project": ["src/**/*.ts!"]
     },
-    // Temporary entry until upstream/ clients import the HTTP core (remove with _spells/001 Phase 2)
+    // Barrel entry: upstream clients import getHttpCore from here, but the rest of the
+    // http/ public surface stays test-only until the composed tool handlers land (DMS-497).
     "packages/server": {
       "project": ["src/**/*.ts!", "test/**/*.ts"],
       "entry": ["src/http/index.ts"]
