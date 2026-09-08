@@ -5,6 +5,7 @@ import {
   ToolErrorCode,
 } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import geoapifyFixture from "../../test/fixtures/geoapify-places.json";
 import { createHttpCore } from "../http/client.js";
 import { analyseNeighbourhood } from "./analyseNeighbourhood.js";
 
@@ -333,5 +334,83 @@ describe("analyseNeighbourhood — domain scoping", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(captured[0]).toBe("catering.bar,catering.pub,entertainment.nightclub");
+  });
+});
+
+describe("analyseNeighbourhood — detail-gated credit ceiling (DMS-501)", () => {
+  it("reports 2 credits and countCapped at the 40-place ceiling with detail: full", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch((categories) =>
+      categories?.includes("catering.bar")
+        ? jsonResponse({ type: "FeatureCollection", features: geoapifyFixture.dense.features })
+        : jsonResponse({ type: "FeatureCollection", features: [] }),
+    );
+
+    const result = await runComposition(
+      buildInput({ categories: ["nightlife"], detail: "full", limitPerCategory: 40 }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    if (result.detail !== "full") throw new Error("expected a full profile");
+
+    expect(result.domains.nightlife?.count).toBe(40);
+    expect(result.domains.nightlife?.countCapped).toBe(true);
+    // ceil(40 / 20) = 2 — the second credit bucket the raised ceiling opts into.
+    expect(result.credits.byDomain.nightlife).toBe(2);
+    expect(result.credits.consumed).toBe(2);
+    expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("returns the 10 nearest samples, ordered by distanceM, when more than 10 places come back", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch((categories) =>
+      categories?.includes("catering.bar")
+        ? jsonResponse({ type: "FeatureCollection", features: geoapifyFixture.dense.features })
+        : jsonResponse({ type: "FeatureCollection", features: [] }),
+    );
+
+    const result = await runComposition(
+      buildInput({ categories: ["nightlife"], detail: "full", limitPerCategory: 40 }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    if (result.detail !== "full") throw new Error("expected a full profile");
+
+    const samples = result.domains.nightlife?.samplePois ?? [];
+    expect(samples).toHaveLength(10);
+    const distances = samples.map((poi) => poi.distanceM ?? Number.POSITIVE_INFINITY);
+    expect(distances).toEqual([...distances].sort((a, b) => a - b));
+    // The fixture's 40 features are already distance-ascending — the 10 nearest are
+    // the first 10 place_ids.
+    expect(samples.map((poi) => poi.id)).toEqual(
+      geoapifyFixture.dense.features.slice(0, 10).map((f) => f.properties.place_id),
+    );
+  });
+
+  it("leaves a domain returning fewer than 10 places unaffected by the raised sample cap", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    // The default (non-dense) fixture has 3 features, one with no name — normalised
+    // down to 2 valid places, well under the 10-sample cap.
+    const fetch = geoapifyFetch(() =>
+      jsonResponse({ type: "FeatureCollection", features: geoapifyFixture.features }),
+    );
+
+    const result = await runComposition(
+      buildInput({ categories: ["dining"], detail: "full" }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    if (result.detail !== "full") throw new Error("expected a full profile");
+
+    expect(result.domains.dining?.samplePois).toHaveLength(2);
   });
 });

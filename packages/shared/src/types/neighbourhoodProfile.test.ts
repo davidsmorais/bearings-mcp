@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { notFound, upstreamError } from "../errors.js";
 import {
+  DomainProfileSchema,
   DomainRatingSchema,
   NeighbourhoodCreditsSchema,
   NeighbourhoodProfileSchema,
@@ -261,6 +262,38 @@ describe("DomainRatingSchema", () => {
     const result = DomainRatingSchema.safeParse({
       ...makeDomainRating(),
       count: -1,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("DomainProfileSchema — samplePois bound", () => {
+  const makeSamplePois = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...samplePoi,
+      id: `poi-${index}`,
+    }));
+
+  it("accepts ten sample POIs", () => {
+    const result = DomainProfileSchema.safeParse({
+      ...makeDomainRating(),
+      samplePois: makeSamplePois(10),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects eleven sample POIs", () => {
+    const result = DomainProfileSchema.safeParse({
+      ...makeDomainRating(),
+      samplePois: makeSamplePois(11),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("still refuses to carry samplePois at all in the brief-shaped DomainRatingSchema", () => {
+    const result = DomainRatingSchema.strict().safeParse({
+      ...makeDomainRating(),
+      samplePois: makeSamplePois(1),
     });
     expect(result.success).toBe(false);
   });
