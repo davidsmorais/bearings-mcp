@@ -22,6 +22,10 @@ describe("analyseNeighbourhoodTool", () => {
     expect(analyseNeighbourhoodTool.description).toContain("sources");
   });
 
+  it("states that Geoapify credits consumed are reported", () => {
+    expect(analyseNeighbourhoodTool.description).toMatch(/credits?/i);
+  });
+
   it("delegates to analyseNeighbourhood with the caller signal", async () => {
     mockedAnalyseNeighbourhood.mockResolvedValue({
       detail: "brief",
