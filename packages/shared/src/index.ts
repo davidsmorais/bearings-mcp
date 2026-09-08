@@ -25,6 +25,24 @@ export type { Coordinates } from "./types/coordinates.js";
 export { CoordinatesSchema } from "./types/coordinates.js";
 export type { CountryCode } from "./types/countryCode.js";
 export { CountryCodeSchema } from "./types/countryCode.js";
+export type {
+  BriefForecast,
+  BriefHoliday,
+  DestinationBrief,
+  DestinationBriefBrief,
+  DestinationBriefFull,
+  SourceOutcome,
+  SourceStatus,
+  Sources,
+} from "./types/destinationBrief.js";
+export {
+  BriefForecastSchema,
+  BriefHolidaySchema,
+  DestinationBriefSchema,
+  SourceOutcomeSchema,
+  SourceStatusSchema,
+  SourcesSchema,
+} from "./types/destinationBrief.js";
 export type { DailyForecast, Forecast, WeatherCondition } from "./types/forecast.js";
 export { DailyForecastSchema, ForecastSchema, WeatherConditionSchema } from "./types/forecast.js";
 export type { Holiday } from "./types/holiday.js";

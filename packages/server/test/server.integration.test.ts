@@ -1,13 +1,23 @@
-import { ambiguous, notFound, ToolErrorCode, toolInputSchemas } from "@bearings/shared";
+import {
+  ambiguous,
+  type GetDestinationBriefInput,
+  notFound,
+  ToolErrorCode,
+  toolInputSchemas,
+} from "@bearings/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { createHttpCore } from "../src/http/client.js";
 import { tools } from "../src/registry.js";
 import { createServer } from "../src/server.js";
 import { defineTool } from "../src/tools/defineTool.js";
+import { composeDestinationBrief } from "../src/tools/getDestinationBrief.js";
 import { resolveDestination } from "../src/upstream/nominatim.js";
+import nagerFixture from "./fixtures/nager.json";
+import openMeteoFixture from "./fixtures/open-meteo.json";
 
 vi.mock("../src/upstream/nominatim.js", () => ({
   resolveDestination: vi.fn(),
@@ -205,36 +215,22 @@ describe("stub tools over an in-memory transport", () => {
     await server.close();
   });
 
-  it.each(["get_destination_brief", "analyse_neighbourhood"] as const)(
-    "%s returns INTERNAL_ERROR via MCP",
-    async (name) => {
-      const args =
-        name === "get_destination_brief"
-          ? {
-              location: {
-                name: "Paris",
-                coordinates: { lat: 48.8566, lon: 2.3522 },
-                countryCode: "FR",
-              },
-              stay: { start: "2026-06-01", end: "2026-06-07" },
-            }
-          : { coordinates: { lat: 48.8566, lon: 2.3522 } };
-
-      const result = await client.callTool({ name, arguments: args });
-      expect(result.isError).toBe(true);
-      expect(result.structuredContent).toEqual({
-        code: ToolErrorCode.INTERNAL_ERROR,
-        message: `${name} is not implemented yet`,
-      });
-    },
-  );
+  it("analyse_neighbourhood returns INTERNAL_ERROR via MCP", async () => {
+    const result = await client.callTool({
+      name: "analyse_neighbourhood",
+      arguments: { coordinates: { lat: 48.8566, lon: 2.3522 } },
+    });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({
+      code: ToolErrorCode.INTERNAL_ERROR,
+      message: "analyse_neighbourhood is not implemented yet",
+    });
+  });
 
   it("advertises stub tools with Not yet implemented prefix", async () => {
     const { tools: listed } = await client.listTools();
-    for (const name of ["get_destination_brief", "analyse_neighbourhood"] as const) {
-      const tool = listed.find((t) => t.name === name);
-      expect(tool?.description).toMatch(/^Not yet implemented — /);
-    }
+    const tool = listed.find((t) => t.name === "analyse_neighbourhood");
+    expect(tool?.description).toMatch(/^Not yet implemented — /);
   });
 });
 
@@ -341,5 +337,123 @@ describe("toolInputSchemas drift guard", () => {
       expect(toolInputSchemas).toHaveProperty(tool.name);
       expect(tool.inputSchema).toBe(toolInputSchemas[tool.name as keyof typeof toolInputSchemas]);
     }
+  });
+});
+
+describe("get_destination_brief through the server envelope", () => {
+  const instantClock = { now: () => 0, sleep: async () => {} };
+  const at = (isoDate: string) => () => new Date(`${isoDate}T12:00:00Z`);
+
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  /** One scripted fetch for both upstreams, keyed by hostname (not full path). */
+  const hostRouter =
+    (handlers: { openMeteo: () => Response; nager: () => Response }) =>
+    async (input: string | URL | Request) => {
+      const host = new URL(String(input)).hostname;
+      if (host === "api.open-meteo.com") return handlers.openMeteo();
+      if (host === "date.nager.at") return handlers.nager();
+      throw new Error(`unexpected host ${host}`);
+    };
+
+  const briefInput: GetDestinationBriefInput = {
+    location: {
+      name: "Vienna",
+      coordinates: { lat: 48.2082, lon: 16.3738 },
+      countryCode: "AT",
+    },
+    stay: { start: "2026-09-08", end: "2026-09-10" },
+    detail: "full",
+  };
+
+  // Wires the real handler logic to an injected offline HTTP core; the point under test
+  // is the createServer() envelope, not the network.
+  const serverWith = (fetch: typeof globalThis.fetch) => {
+    const core = createHttpCore({ fetch, clock: instantClock });
+    return createServer([
+      defineTool({
+        name: "get_destination_brief",
+        description: "test wiring",
+        inputSchema: toolInputSchemas.get_destination_brief,
+        handler: (input) =>
+          composeDestinationBrief(input as GetDestinationBriefInput, {
+            core,
+            now: at("2026-09-08"),
+          }),
+      }),
+    ]);
+  };
+
+  let client: Client;
+  let server: Server;
+
+  const connect = async (fetch: typeof globalThis.fetch) => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    client = new Client({ name: "test-brief", version: "0" });
+    server = serverWith(fetch);
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  };
+
+  afterEach(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  it("returns structuredContent and no isError when only one upstream fails", async () => {
+    await connect(
+      hostRouter({
+        openMeteo: () => new Response("upstream boom", { status: 500 }),
+        nager: () => jsonResponse(nagerFixture.publicHolidays2026AT),
+      }) as typeof globalThis.fetch,
+    );
+
+    const result = await client.callTool({ name: "get_destination_brief", arguments: briefInput });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as Record<string, unknown>;
+    expect(structured).toBeDefined();
+    const sources = structured.sources as Record<string, { status: string }>;
+    expect(sources.openMeteo.status).toBe("unavailable");
+    expect(sources.nager.status).toBe("ok");
+    expect(structured.forecast).toBeUndefined();
+    expect(Array.isArray(structured.holidays)).toBe(true);
+  });
+
+  it("returns isError when both upstreams fail", async () => {
+    await connect(
+      hostRouter({
+        openMeteo: () => new Response("upstream boom", { status: 500 }),
+        nager: () => new Response("upstream boom", { status: 500 }),
+      }) as typeof globalThis.fetch,
+    );
+
+    const result = await client.callTool({ name: "get_destination_brief", arguments: briefInput });
+
+    expect(result.isError).toBe(true);
+    const structured = result.structuredContent as Record<string, unknown>;
+    expect(structured.code).toBe(ToolErrorCode.UPSTREAM_ERROR);
+    expect((structured.details as Record<string, unknown>).alsoFailed).toBeDefined();
+  });
+
+  it("returns the full brief with both sources ok when both upstreams succeed", async () => {
+    await connect(
+      hostRouter({
+        openMeteo: () => jsonResponse(openMeteoFixture),
+        nager: () => jsonResponse(nagerFixture.publicHolidays2026AT),
+      }) as typeof globalThis.fetch,
+    );
+
+    const result = await client.callTool({ name: "get_destination_brief", arguments: briefInput });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as Record<string, unknown>;
+    expect(structured.forecast).toBeDefined();
+    const sources = structured.sources as Record<string, { status: string }>;
+    expect(sources.openMeteo.status).toBe("ok");
+    expect(sources.nager.status).toBe("ok");
   });
 });
