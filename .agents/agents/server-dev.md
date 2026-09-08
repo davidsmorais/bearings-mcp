@@ -19,6 +19,7 @@ skills:
   - new-mcp-tool
   - new-upstream-client
   - new-shared-schema
+  - atomic-commits
   - dinesh-pr-open
   - dinesh-pr-feedback
 ---

@@ -36,7 +36,7 @@ Responds to PR review feedback professionally and competently. Initial defensive
 
 4. **Push fixes**
    - Make the code changes in new commits on the same branch (don't amend/rebase — the reviewer needs to see what changed)
-   - Each fix commit message should reference the PR: "fix: address PR feedback on null check (PR #42)"
+   - Each fix commit message should reference the PR (see `atomic-commits` skill): `🐛fix(server): address PR feedback on null check (PR #42)`
    - Re-run linter and tests after all fixes
    - If the feedback required significant restructuring, re-request review with a summary of changes
 

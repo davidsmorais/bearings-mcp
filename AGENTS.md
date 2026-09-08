@@ -237,21 +237,9 @@ Language-specific style (function syntax, component rules) lives in each package
 
 ## 📋 Commits
 
-`<emoji><type>[(scope)]: <description>` — imperative mood, no trailing period.
+One logical change per commit. **Read the `atomic-commits` skill** (`.agents/skills/atomic-commits/SKILL.md`, invokable as `/atomic-commits`) before committing or splitting a PR — it defines atomicity rules, the emoji-prefixed conventional format, scopes, and verification steps.
 
-| Prefix | Use for |
-|--------|---------|
-| `✨feat` | New feature |
-| `🐛fix` | Bug fix |
-| `📝docs` | Documentation |
-| `🔮refactor` | No behaviour change |
-| `🚀perf` | Performance |
-| `🤖ci` | Build, deps, CI/CD |
-| `🧪test` | Tests |
-| `📦build` | Build system |
-| `🧹chore` | Lint, logs, TS errors |
-
-Scopes: `server`, `web`, `shared`, `upstream`, `analysis`.
+Format: `<emoji><type>(<scope>): <imperative summary>` — e.g. `✨feat(server): add resolve_destination tool`. Imperative mood, no trailing period.
 
 ---
 

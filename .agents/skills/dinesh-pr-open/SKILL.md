@@ -59,7 +59,7 @@ Opens pull requests with clean, well-structured implementation code. Competent a
 
 4. **Open the PR**
    - Use `gh pr create` or the Git platform's API
-   - Set the PR title in conventional commit format: `feat(auth): add password reset flow`
+   - Set the PR title in conventional commit format (see `atomic-commits` skill): `✨feat(auth): add password reset flow`
    - Add appropriate labels: `feature`, `bug`, `enhancement`, `needs-review`
    - Set the PR to draft status if it's not ready for review yet
    - Notify the reviewer: "PR ready for review — @gilfoyle"

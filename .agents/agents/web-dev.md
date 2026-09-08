@@ -17,6 +17,7 @@ tools: [read, write, edit, bash, grep, glob]
 skills:
   - new-web-component
   - new-web-hook
+  - atomic-commits
   - deslopify
 ---
 
