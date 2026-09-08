@@ -127,12 +127,12 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(result.sources.nightlife?.status).toBe("ok");
     expect(result.sources.dining?.status).toBe("ok");
     expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
-    // Two requests left the process even though both came back empty — both are billed.
-    expect(result.credits.consumed).toBe(2);
-    expect(result.credits.byDomain).toEqual({ nightlife: 1, dining: 1 });
+    // Two requests left the process but returned no places — per-20 billing is 0 each.
+    expect(result.credits.consumed).toBe(0);
+    expect(result.credits.byDomain).toEqual({ nightlife: 0, dining: 0 });
   });
 
-  it("bills one credit per domain for a six-domain uncached call", async () => {
+  it("bills zero credits per domain when every domain returns no places", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 
     const fetch = geoapifyFetch(() => jsonResponse({ type: "FeatureCollection", features: [] }));
@@ -145,8 +145,8 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(isToolError(result)).toBe(false);
     if (isToolError(result)) return;
 
-    expect(result.credits.consumed).toBe(6);
-    expect(Object.values(result.credits.byDomain)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(result.credits.consumed).toBe(0);
+    expect(Object.values(result.credits.byDomain)).toEqual([0, 0, 0, 0, 0, 0]);
     if (result.detail !== "full") throw new Error("expected a full profile");
     for (const domain of Object.values(result.domains)) {
       expect(domain?.rating).toBe("none");
@@ -167,7 +167,7 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(isToolError(second)).toBe(false);
     if (isToolError(first) || isToolError(second)) return;
 
-    expect(first.credits.consumed).toBe(2);
+    expect(first.credits.consumed).toBe(0);
     expect(second.credits.consumed).toBe(0);
     expect(second.credits.byDomain).toEqual({ nightlife: 0, dining: 0 });
   });
@@ -236,7 +236,7 @@ describe("analyseNeighbourhood — partial upstream failure", () => {
     expect(result.credits.consumed).toBe(1);
   });
 
-  it("counts credits only for the domains that returned when several fail", async () => {
+  it("counts zero credits for successful domains that returned no places when others fail", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 
     const fetch = geoapifyFetch((categories) => {
@@ -252,10 +252,13 @@ describe("analyseNeighbourhood — partial upstream failure", () => {
     expect(isToolError(result)).toBe(false);
     if (isToolError(result)) return;
 
-    expect(result.credits.consumed).toBe(4);
-    expect(Object.keys(result.credits.byDomain).sort()).toEqual(
-      ["culture", "dining", "greenSpace", "retail"].sort(),
-    );
+    expect(result.credits.consumed).toBe(0);
+    expect(result.credits.byDomain).toEqual({
+      culture: 0,
+      dining: 0,
+      greenSpace: 0,
+      retail: 0,
+    });
   });
 });
 

@@ -2,7 +2,7 @@ import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import geoapifyFixture from "../../test/fixtures/geoapify-places.json";
 import { createHttpCore } from "../http/client.js";
-import { creditsForResponse, GEOAPIFY_CREDITS_PER_REQUEST, searchPlaces } from "./geoapify.js";
+import { creditsForResponse, GEOAPIFY_PLACES_PER_CREDIT, searchPlaces } from "./geoapify.js";
 
 const instantClock = {
   now: () => 0,
@@ -241,10 +241,14 @@ describe("searchPlaces", () => {
     }
   });
 
-  it("reports one credit for an uncached request regardless of how many places it returns", async () => {
+  it("reports ceil(places / 20) credits for an uncached request", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 
-    for (const featureCount of [0, 1, 20]) {
+    for (const [featureCount, expectedCredits] of [
+      [0, 0],
+      [1, 1],
+      [20, 1],
+    ] as const) {
       const fetch = vi.fn(async () =>
         jsonResponse({
           type: "FeatureCollection",
@@ -275,7 +279,7 @@ describe("searchPlaces", () => {
 
       expect(isToolError(result)).toBe(false);
       if (!isToolError(result)) {
-        expect(result.credits).toBe(1);
+        expect(result.credits).toBe(expectedCredits);
         expect(result.meta.cacheHit).toBe(false);
       }
     }
@@ -284,7 +288,24 @@ describe("searchPlaces", () => {
   it("reports zero credits when the HTTP core serves the response from cache", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 
-    const fetch = vi.fn(async () => jsonResponse({ type: "FeatureCollection", features: [] }));
+    const fetch = vi.fn(async () =>
+      jsonResponse({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              name: "Venue",
+              lat: 48.8566,
+              lon: 2.3522,
+              place_id: "place-1",
+              categories: ["catering.restaurant"],
+              distance: 10,
+            },
+          },
+        ],
+      }),
+    );
     const core = createHttpCore({ fetch, clock: instantClock });
     const input = {
       coordinates: { lat: 48.8566, lon: 2.3522 },
@@ -306,10 +327,11 @@ describe("searchPlaces", () => {
     }
   });
 
-  it("creditsForResponse charges per request, not per returned place", () => {
-    expect(creditsForResponse(false)).toBe(GEOAPIFY_CREDITS_PER_REQUEST);
-    expect(creditsForResponse(true)).toBe(0);
-    expect(GEOAPIFY_CREDITS_PER_REQUEST).toBe(1);
+  it("creditsForResponse bills ceil(places / 20)", () => {
+    expect(creditsForResponse(false, 20)).toBe(1);
+    expect(creditsForResponse(false, 50)).toBe(3);
+    expect(creditsForResponse(true, 50)).toBe(0);
+    expect(GEOAPIFY_PLACES_PER_CREDIT).toBe(20);
   });
 
   it("maps generic 429 responses to RATE_LIMITED", async () => {
