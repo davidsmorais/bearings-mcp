@@ -31,16 +31,12 @@ export type {
   DestinationBrief,
   DestinationBriefBrief,
   DestinationBriefFull,
-  SourceOutcome,
-  SourceStatus,
   Sources,
 } from "./types/destinationBrief.js";
 export {
   BriefForecastSchema,
   BriefHolidaySchema,
   DestinationBriefSchema,
-  SourceOutcomeSchema,
-  SourceStatusSchema,
   SourcesSchema,
 } from "./types/destinationBrief.js";
 export type { DailyForecast, Forecast, WeatherCondition } from "./types/forecast.js";
@@ -51,6 +47,18 @@ export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
 export type { NeighbourhoodDomain } from "./types/neighbourhoodDomain.js";
 export { NeighbourhoodDomainSchema } from "./types/neighbourhoodDomain.js";
+export type {
+  DomainProfile,
+  DomainRating,
+  NeighbourhoodProfile,
+  NeighbourhoodProfileBrief,
+  NeighbourhoodProfileFull,
+} from "./types/neighbourhoodProfile.js";
+export {
+  DomainProfileSchema,
+  DomainRatingSchema,
+  NeighbourhoodProfileSchema,
+} from "./types/neighbourhoodProfile.js";
 export type { PoiCategory } from "./types/poiCategory.js";
 export { PoiCategorySchema } from "./types/poiCategory.js";
 export type { PointOfInterest } from "./types/pointOfInterest.js";
@@ -65,6 +73,8 @@ export {
   PlaceKindSchema,
   ResolvedLocationSchema,
 } from "./types/resolvedLocation.js";
+export type { SourceOutcome, SourceStatus } from "./types/sourceOutcome.js";
+export { SourceOutcomeSchema, SourceStatusSchema } from "./types/sourceOutcome.js";
 export type { TimeWindow } from "./types/timeWindow.js";
 export { MAX_STAY_NIGHTS, TimeWindowSchema } from "./types/timeWindow.js";
 
