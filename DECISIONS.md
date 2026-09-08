@@ -119,3 +119,43 @@ outright — it breaks under `isolatedModules`, which this repo sets).
 - Raw `fetch` in the hooks instead of the MCP SDK `Client` (re-implements JSON-RPC framing, session-id handling, and SSE parsing that the SDK already does correctly, and drifts the moment the SDK's session handling changes).
 
 **Status:** React Query layer, `QueryClient`, MCP client singleton, and `useToolList` / `useToolCall` hooks delivered under `_spells/004`. End-to-end verification against a running server is deferred to Linear DMS-503 (Streamable HTTP transport), which does not yet exist — the hooks are pinned by mocked-client unit tests in the meantime.
+
+---
+
+## 2026-09-08 — Geoapify Places bills per request, not per 20 places returned
+
+**Decision:** Geoapify's Places API costs **1 credit per request**, and the number of
+places a request returns does not affect that cost. A cache hit costs 0; a failed
+request (4xx/5xx) is not billed; an `analyse_neighbourhood` call that fails on every
+domain returns a `ToolError` with no credit block because nothing was billed.
+`analyse_neighbourhood` reports this as a top-level `credits: { consumed, byDomain }`
+block on the response (both `brief` and `full`), where a failed domain is absent from
+`byDomain` and a cache-served domain appears as an explicit `0`.
+
+**Why:** Geoapify's Pricing & Billing FAQ: *"In general, 1 API request costs 1 credit
+for simple requests like Geocoding API, Places API, Routing API"* and *"you can consider
+1 request = 1 API call that costs 1 credit."* The repo had been carrying "1 credit per
+20 places returned" / "`limit: 100` costs 5 credits" — two different rules, neither
+matching the FAQ, and the per-places reading would report a rural six-domain call that
+returned nothing at all as costing zero, which is wrong: six requests were billed. The
+credit block is `{ consumed, byDomain }` rather than a bare integer per root Invariant 6
+(a derived number carries its evidence) — `byDomain` says which domains were billed,
+cached, or failed. Top-level `credits`, not a pre-shaped `cost` envelope: DMS-501 designs
+the token-count shape and can fold both into an envelope then if it wants one.
+
+**Residual uncertainty:** the FAQ defers per-API specifics to a Pricing Details page not
+in evidence, which may be where the `ceil(limit/20)` figure originated. It does not matter
+at the current `limitPerCategory` cap of 20 — `ceil(20/20) = 1`, so the per-request rule
+and a per-limit rule agree on every call this tool can make. `GEOAPIFY_CREDITS_PER_REQUEST`
+carries a tripwire comment: raising the cap above 20 requires resettling the billing
+question first. The "`limit` is a cost lever" comments elsewhere in the repo
+(`upstream/geoapify.ts`, `schemas/analyseNeighbourhood.ts`, `AGENTS.md`) are left untouched
+pending a follow-up ticket to either confirm the per-request rule repo-wide or find the
+per-limit rule.
+
+**Alternatives considered:** `ceil(count/20)` on places returned (the repo's prior
+assumption; contradicted by the FAQ, reports a rural six-request call as free);
+`max(1, ceil(count/20))` (an earlier draft's floor — the FAQ makes the floor the whole
+rule); a flat `domains × 1` worst case ignoring the cache (rejected — the 7-day Geoapify
+cache TTL means repeat calls genuinely consume nothing, and the issue asks what the call
+"consumed"); a bare `credits: number` (rejected — loses which domains were billed).
