@@ -25,6 +25,9 @@ function isGeoapifyQuotaExceeded(body: unknown): boolean {
 }
 
 function classifyGeoapifyStatus(status: number, body: unknown): ToolErrorCode | undefined {
+  if (status === 401) {
+    return ToolErrorCode.UPSTREAM_ERROR;
+  }
   if (status === 429 && isGeoapifyQuotaExceeded(body)) {
     return ToolErrorCode.QUOTA_EXCEEDED;
   }

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { assertRequiredEnv } from "../env.js";
 import { createServer } from "../server.js";
 
 async function main(): Promise<void> {
+  assertRequiredEnv();
   const server = createServer();
   const transport = new StdioServerTransport();
 
