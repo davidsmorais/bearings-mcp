@@ -1,8 +1,8 @@
 import { isToolError } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { HOST_CONFIG } from "../../src/http/config.js";
-import { createFakeClock, flushMicrotasks } from "./fakeClock.js";
+import { createFakeClock, flushMicrotasks } from "../../test/fakeClock.js";
+import { createHttpCore } from "./client.js";
+import { HOST_CONFIG } from "./config.js";
 
 const instantClock = {
   now: () => 0,

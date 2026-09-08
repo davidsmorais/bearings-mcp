@@ -1,8 +1,8 @@
 import { ToolErrorCode, toolInputSchemas } from "@bearings/shared";
 import { describe, expect, it } from "vitest";
-import { tools } from "../src/registry.js";
-import { analyseNeighbourhoodTool } from "../src/tools/analyseNeighbourhood.js";
-import { echoTool } from "../src/tools/echo.js";
+import { tools } from "../registry.js";
+import { analyseNeighbourhoodTool } from "./analyseNeighbourhood.js";
+import { echoTool } from "./echo.js";
 
 describe("echoTool", () => {
   it("is registered under the name 'echo'", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { HOST_CONFIG } from "../../src/http/config.js";
-import { createRateLimiter } from "../../src/http/rateLimiter.js";
-import { createFakeClock, flushMicrotasks } from "./fakeClock.js";
+import { createFakeClock, flushMicrotasks } from "../../test/fakeClock.js";
+import { HOST_CONFIG } from "./config.js";
+import { createRateLimiter } from "./rateLimiter.js";
 
 describe("createRateLimiter", () => {
   it("drains 10 parallel acquires at 1/sec in FIFO order", async () => {

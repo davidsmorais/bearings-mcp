@@ -1,8 +1,8 @@
 import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { resolveDestination } from "../../src/upstream/nominatim.js";
-import nominatimFixture from "../fixtures/nominatim.json";
+import nominatimFixture from "../../test/fixtures/nominatim.json";
+import { createHttpCore } from "../http/client.js";
+import { resolveDestination } from "./nominatim.js";
 
 const instantClock = {
   now: () => 0,

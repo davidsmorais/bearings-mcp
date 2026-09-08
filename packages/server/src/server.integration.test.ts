@@ -10,16 +10,16 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createHttpCore } from "../src/http/client.js";
-import { tools } from "../src/registry.js";
-import { createServer } from "../src/server.js";
-import { defineTool } from "../src/tools/defineTool.js";
-import { composeDestinationBrief } from "../src/tools/getDestinationBrief.js";
-import { resolveDestination } from "../src/upstream/nominatim.js";
-import nagerFixture from "./fixtures/nager.json";
-import openMeteoFixture from "./fixtures/open-meteo.json";
+import nagerFixture from "../test/fixtures/nager.json";
+import openMeteoFixture from "../test/fixtures/open-meteo.json";
+import { createHttpCore } from "./http/client.js";
+import { tools } from "./registry.js";
+import { createServer } from "./server.js";
+import { defineTool } from "./tools/defineTool.js";
+import { composeDestinationBrief } from "./tools/getDestinationBrief.js";
+import { resolveDestination } from "./upstream/nominatim.js";
 
-vi.mock("../src/upstream/nominatim.js", () => ({
+vi.mock("./upstream/nominatim.js", () => ({
   resolveDestination: vi.fn(),
 }));
 

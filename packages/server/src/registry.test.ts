@@ -1,8 +1,8 @@
 import { toolInputSchemas } from "@bearings/shared";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { assertUniqueToolNames, tools } from "../src/registry.js";
-import { defineTool } from "../src/tools/defineTool.js";
+import { assertUniqueToolNames, tools } from "./registry.js";
+import { defineTool } from "./tools/defineTool.js";
 
 describe("registry", () => {
   it("exposes structurally well-formed tool definitions", () => {

@@ -1,8 +1,8 @@
 import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { searchPlaces } from "../../src/upstream/geoapify.js";
-import geoapifyFixture from "../fixtures/geoapify-places.json";
+import geoapifyFixture from "../../test/fixtures/geoapify-places.json";
+import { createHttpCore } from "../http/client.js";
+import { searchPlaces } from "./geoapify.js";
 
 const instantClock = {
   now: () => 0,

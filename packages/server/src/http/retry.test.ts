@@ -1,9 +1,9 @@
 import { isToolError } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { HOST_CONFIG } from "../../src/http/config.js";
-import { computeBackoffDelay, isRetryable, parseRetryAfter } from "../../src/http/retry.js";
-import { createFakeClock } from "./fakeClock.js";
+import { createFakeClock } from "../../test/fakeClock.js";
+import { createHttpCore } from "./client.js";
+import { HOST_CONFIG } from "./config.js";
+import { computeBackoffDelay, isRetryable, parseRetryAfter } from "./retry.js";
 
 describe("retry helpers", () => {
   it("classifies 500 as retryable and 400 as not retryable", () => {

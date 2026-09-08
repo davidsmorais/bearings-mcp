@@ -1,8 +1,8 @@
 import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { fetchForecast } from "../../src/upstream/openMeteo.js";
-import openMeteoFixture from "../fixtures/open-meteo.json";
+import openMeteoFixture from "../../test/fixtures/open-meteo.json";
+import { createHttpCore } from "../http/client.js";
+import { fetchForecast } from "./openMeteo.js";
 
 const instantClock = { now: () => 0, sleep: async () => {} };
 

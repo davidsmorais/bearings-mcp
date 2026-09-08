@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { conditionForWeatherCode } from "../../src/upstream/weatherCode.js";
+import { conditionForWeatherCode } from "./weatherCode.js";
 
 afterEach(() => {
   vi.restoreAllMocks();

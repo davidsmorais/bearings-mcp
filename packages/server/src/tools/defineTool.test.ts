@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../src/tools/defineTool.js";
+import { defineTool } from "./defineTool.js";
 
 describe("defineTool", () => {
   it("defines a tool with standard object schema and invokes its handler", async () => {

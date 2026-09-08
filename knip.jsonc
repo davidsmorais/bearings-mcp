@@ -5,8 +5,10 @@
     "packages/shared": {
       "project": ["src/**/*.ts!"]
     },
-    // Barrel entry: upstream clients import getHttpCore from here, but the rest of the
-    // http/ public surface stays test-only until the composed tool handlers land (DMS-497).
+    // Barrel entry: production imports only getHttpCore from here; createHttpCore / HOST_CONFIG
+    // and the re-exported http error types are consumed only by colocated *.test.ts files, so
+    // src/http/index.ts is declared an entry to keep its full public surface from reading as dead.
+    // test/**/*.ts covers the shared test helpers (test/fakeClock.ts); test/ has no test files.
     "packages/server": {
       "project": ["src/**/*.ts!", "test/**/*.ts"],
       "entry": ["src/http/index.ts"]

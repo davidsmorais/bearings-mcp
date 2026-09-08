@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createCache } from "../../src/http/cache.js";
-import { buildCacheKey } from "../../src/http/cacheKey.js";
+import { createCache } from "./cache.js";
+import { buildCacheKey } from "./cacheKey.js";
 
 describe("createCache", () => {
   it("returns a hit before TTL and misses after expiry", () => {

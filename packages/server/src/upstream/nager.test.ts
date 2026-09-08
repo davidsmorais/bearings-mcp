@@ -1,9 +1,9 @@
 import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpCore } from "../../src/http/client.js";
-import { HOST_CONFIG } from "../../src/http/config.js";
-import { fetchHolidaysInWindow } from "../../src/upstream/nager.js";
-import nagerFixture from "../fixtures/nager.json";
+import nagerFixture from "../../test/fixtures/nager.json";
+import { createHttpCore } from "../http/client.js";
+import { HOST_CONFIG } from "../http/config.js";
+import { fetchHolidaysInWindow } from "./nager.js";
 
 const instantClock = {
   now: () => 0,

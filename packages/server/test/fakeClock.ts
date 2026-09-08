@@ -1,4 +1,4 @@
-import type { Clock } from "../../src/http/rateLimiter.js";
+import type { Clock } from "../src/http/rateLimiter.js";
 
 interface PendingSleep {
   wakeAt: number;
