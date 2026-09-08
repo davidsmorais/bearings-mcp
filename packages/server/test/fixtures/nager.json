@@ -1,0 +1,172 @@
+{
+  "description": "Captured GET https://date.nager.at/api/v3/PublicHolidays/2026/AT — Nager.Date v3, retrieved 2026-09-08. One calendar year per response; see AGENTS.md upstream quirks.",
+  "publicHolidays2026AT": [
+    {
+      "date": "2026-01-01",
+      "localName": "Neujahr",
+      "name": "New Year's Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-01-06",
+      "localName": "Heilige Drei Könige",
+      "name": "Epiphany",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-04-06",
+      "localName": "Ostermontag",
+      "name": "Easter Monday",
+      "countryCode": "AT",
+      "fixed": false,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-05-01",
+      "localName": "Staatsfeiertag",
+      "name": "National Holiday",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-05-14",
+      "localName": "Christi Himmelfahrt",
+      "name": "Ascension Day",
+      "countryCode": "AT",
+      "fixed": false,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-05-25",
+      "localName": "Pfingstmontag",
+      "name": "Whit Monday",
+      "countryCode": "AT",
+      "fixed": false,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-06-04",
+      "localName": "Fronleichnam",
+      "name": "Corpus Christi",
+      "countryCode": "AT",
+      "fixed": false,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-08-15",
+      "localName": "Mariä Himmelfahrt",
+      "name": "Assumption Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-10-26",
+      "localName": "Nationalfeiertag",
+      "name": "National Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": 1965,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-11-01",
+      "localName": "Allerheiligen",
+      "name": "All Saints' Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-12-08",
+      "localName": "Mariä Empfängnis",
+      "name": "Immaculate Conception",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-12-25",
+      "localName": "Weihnachten",
+      "name": "Christmas Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2026-12-26",
+      "localName": "Stefanitag",
+      "name": "St. Stephen's Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    }
+  ],
+  "publicHolidays2027AT": [
+    {
+      "date": "2027-01-01",
+      "localName": "Neujahr",
+      "name": "New Year's Day",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    },
+    {
+      "date": "2027-01-06",
+      "localName": "Heilige Drei Könige",
+      "name": "Epiphany",
+      "countryCode": "AT",
+      "fixed": true,
+      "global": true,
+      "counties": null,
+      "launchYear": null,
+      "types": ["Public"]
+    }
+  ]
+}
