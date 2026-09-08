@@ -2,7 +2,7 @@ import { isToolError, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import geoapifyFixture from "../../test/fixtures/geoapify-places.json";
 import { createHttpCore } from "../http/client.js";
-import { searchPlaces } from "./geoapify.js";
+import { creditsForResponse, GEOAPIFY_CREDITS_PER_REQUEST, searchPlaces } from "./geoapify.js";
 
 const instantClock = {
   now: () => 0,
@@ -239,6 +239,77 @@ describe("searchPlaces", () => {
       expect(result.code).toBe(ToolErrorCode.UPSTREAM_ERROR);
       expect(result.details?.status).toBe(401);
     }
+  });
+
+  it("reports one credit for an uncached request regardless of how many places it returns", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    for (const featureCount of [0, 1, 20]) {
+      const fetch = vi.fn(async () =>
+        jsonResponse({
+          type: "FeatureCollection",
+          features: Array.from({ length: featureCount }, (_, index) => ({
+            type: "Feature",
+            properties: {
+              name: `Venue ${index}`,
+              lat: 48.8566,
+              lon: 2.3522,
+              place_id: `place-${index}`,
+              categories: ["catering.restaurant"],
+              distance: 10 + index,
+            },
+          })),
+        }),
+      );
+      const core = createHttpCore({ fetch, clock: instantClock });
+
+      const result = await searchPlaces(
+        {
+          coordinates: { lat: 48.8566, lon: 2.3522 },
+          radiusM: 500,
+          categories: ["dining"],
+          limit: 20,
+        },
+        { core },
+      );
+
+      expect(isToolError(result)).toBe(false);
+      if (!isToolError(result)) {
+        expect(result.credits).toBe(1);
+        expect(result.meta.cacheHit).toBe(false);
+      }
+    }
+  });
+
+  it("reports zero credits when the HTTP core serves the response from cache", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = vi.fn(async () => jsonResponse({ type: "FeatureCollection", features: [] }));
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const input = {
+      coordinates: { lat: 48.8566, lon: 2.3522 },
+      radiusM: 500,
+      categories: ["dining"] as const,
+      limit: 20,
+    };
+
+    const first = await searchPlaces(input, { core });
+    const second = await searchPlaces(input, { core });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(isToolError(first)).toBe(false);
+    expect(isToolError(second)).toBe(false);
+    if (!isToolError(first)) expect(first.credits).toBe(1);
+    if (!isToolError(second)) {
+      expect(second.credits).toBe(0);
+      expect(second.meta.cacheHit).toBe(true);
+    }
+  });
+
+  it("creditsForResponse charges per request, not per returned place", () => {
+    expect(creditsForResponse(false)).toBe(GEOAPIFY_CREDITS_PER_REQUEST);
+    expect(creditsForResponse(true)).toBe(0);
+    expect(GEOAPIFY_CREDITS_PER_REQUEST).toBe(1);
   });
 
   it("maps generic 429 responses to RATE_LIMITED", async () => {

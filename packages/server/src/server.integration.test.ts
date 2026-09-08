@@ -30,6 +30,8 @@ vi.mock("./upstream/geoapify.js", async (importOriginal) => {
     searchPlaces: vi.fn(async () => ({
       places: [],
       meta: { hostId: "geoapify" as const, cacheHit: false, attempts: 1, durationMs: 0 },
+      // cacheHit: false ⇒ the request was billed one credit.
+      credits: 1,
     })),
   };
 });
