@@ -23,6 +23,17 @@ vi.mock("./upstream/nominatim.js", () => ({
   resolveDestination: vi.fn(),
 }));
 
+vi.mock("./upstream/geoapify.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./upstream/geoapify.js")>();
+  return {
+    ...actual,
+    searchPlaces: vi.fn(async () => ({
+      places: [],
+      meta: { hostId: "geoapify" as const, cacheHit: false, attempts: 1, durationMs: 0 },
+    })),
+  };
+});
+
 const mockedResolveDestination = vi.mocked(resolveDestination);
 
 describe("createServer over an in-memory transport", () => {
@@ -199,13 +210,13 @@ describe("createServer error handling and schema extensions", () => {
   });
 });
 
-describe("stub tools over an in-memory transport", () => {
+describe("analyse_neighbourhood over an in-memory transport", () => {
   let client: Client;
   let server: Server;
 
   beforeEach(async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    client = new Client({ name: "test-stubs", version: "0" });
+    client = new Client({ name: "test-analyse", version: "0" });
     server = createServer();
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
   });
@@ -215,22 +226,25 @@ describe("stub tools over an in-memory transport", () => {
     await server.close();
   });
 
-  it("analyse_neighbourhood returns INTERNAL_ERROR via MCP", async () => {
+  it("returns a valid brief profile via MCP", async () => {
     const result = await client.callTool({
       name: "analyse_neighbourhood",
-      arguments: { coordinates: { lat: 48.8566, lon: 2.3522 } },
+      arguments: {
+        coordinates: { lat: 38.7003, lon: -9.421 },
+        categories: ["nightlife"],
+      },
     });
-    expect(result.isError).toBe(true);
-    expect(result.structuredContent).toEqual({
-      code: ToolErrorCode.INTERNAL_ERROR,
-      message: "analyse_neighbourhood is not implemented yet",
-    });
+    expect(result.isError).toBeFalsy();
+    const profile = result.structuredContent as { detail?: string; domains?: unknown };
+    expect(profile.detail).toBe("brief");
+    expect(profile.domains).toBeDefined();
   });
 
-  it("advertises stub tools with Not yet implemented prefix", async () => {
+  it("advertises a real tool description", async () => {
     const { tools: listed } = await client.listTools();
     const tool = listed.find((t) => t.name === "analyse_neighbourhood");
-    expect(tool?.description).toMatch(/^Not yet implemented — /);
+    expect(tool?.description).not.toMatch(/^Not yet implemented — /);
+    expect(tool?.description).toContain("sources");
   });
 });
 

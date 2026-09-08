@@ -10,32 +10,14 @@ import {
   isToolError,
   type SourceOutcome,
   type ToolError,
-  ToolErrorCode,
   toolInputSchemas,
   upstreamError,
 } from "@bearings/shared";
+import { moreSevereError } from "../analysis/errorSeverity.js";
 import type { HttpCore } from "../http/index.js";
 import { fetchHolidaysInWindow, type HolidayLookup } from "../upstream/nager.js";
 import { fetchForecast } from "../upstream/openMeteo.js";
 import { defineTool } from "./defineTool.js";
-
-/**
- * Severity ranking used only when BOTH upstreams fail: the worse error is the one
- * surfaced, the other travels in `details.alsoFailed` (root Invariant 7 — the ranking
- * is a named constant block, not magic numbers). Higher is worse. Equal severity
- * resolves to Open-Meteo, since weather is the headline of a destination brief.
- */
-const ERROR_SEVERITY: Record<ToolErrorCode, number> = {
-  [ToolErrorCode.NOT_FOUND]: 1,
-  [ToolErrorCode.QUOTA_EXCEEDED]: 2,
-  [ToolErrorCode.RATE_LIMITED]: 3,
-  [ToolErrorCode.TIMEOUT]: 4,
-  [ToolErrorCode.UPSTREAM_TIMEOUT]: 4,
-  [ToolErrorCode.AMBIGUOUS]: 5,
-  [ToolErrorCode.INVALID_INPUT]: 5,
-  [ToolErrorCode.UPSTREAM_ERROR]: 6,
-  [ToolErrorCode.INTERNAL_ERROR]: 7,
-};
 
 export interface ComposeDeps {
   /** HTTP core to route both upstreams through. Defaults to the production singleton. */
@@ -44,15 +26,6 @@ export interface ComposeDeps {
   readonly signal?: AbortSignal;
   /** Injectable "now" for Open-Meteo's horizon math; defaults to the wall clock. */
   readonly now?: () => Date;
-}
-
-function moreSevereError(forecastError: ToolError, holidayError: ToolError): ToolError {
-  const holidayWorse = ERROR_SEVERITY[holidayError.code] > ERROR_SEVERITY[forecastError.code];
-  const worst = holidayWorse ? holidayError : forecastError;
-  const other = holidayWorse ? forecastError : holidayError;
-  // Spread `worst` whole so its own structured fields (`upstream`, `retryAfterMs`,
-  // `timeoutMs`, `field`, …) survive — only `alsoFailed` is folded into `details`.
-  return { ...worst, isError: true, details: { ...worst.details, alsoFailed: other } };
 }
 
 function mapForecast(result: Forecast | ToolError): {

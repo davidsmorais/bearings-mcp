@@ -1,4 +1,4 @@
-import { ToolErrorCode, toolInputSchemas } from "@bearings/shared";
+import { toolInputSchemas } from "@bearings/shared";
 import { describe, expect, it } from "vitest";
 import { tools } from "../registry.js";
 import { analyseNeighbourhoodTool } from "./analyseNeighbourhood.js";
@@ -23,27 +23,14 @@ describe("echoTool", () => {
   });
 });
 
-describe("stub tools", () => {
-  it("analyse_neighbourhood returns INTERNAL_ERROR", async () => {
-    const result = await analyseNeighbourhoodTool.handler({
-      coordinates: { lat: 48.8566, lon: 2.3522 },
-      radiusM: 500,
-      categories: ["dining", "cafes", "nightlife", "groceries", "transit", "parks", "culture"],
-      limitPerCategory: 20,
-      detail: "brief",
-    });
-    expect(result).toEqual({
-      code: ToolErrorCode.INTERNAL_ERROR,
-      message: "analyse_neighbourhood is not implemented yet",
-    });
+describe("analyseNeighbourhoodTool", () => {
+  it("is registered under the name analyse_neighbourhood", () => {
+    expect(analyseNeighbourhoodTool.name).toBe("analyse_neighbourhood");
   });
 
-  it.each([analyseNeighbourhoodTool] as const)(
-    "stub description for %s begins with Not yet implemented",
-    (tool) => {
-      expect(tool.description).toMatch(/^Not yet implemented — /);
-    },
-  );
+  it("does not advertise a stub description", () => {
+    expect(analyseNeighbourhoodTool.description).not.toMatch(/^Not yet implemented — /);
+  });
 });
 
 describe("toolInputSchemas drift guard", () => {

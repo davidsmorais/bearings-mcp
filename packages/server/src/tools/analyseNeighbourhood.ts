@@ -1,10 +1,11 @@
-import { internalError, toolInputSchemas } from "@bearings/shared";
+import { toolInputSchemas } from "@bearings/shared";
+import { analyseNeighbourhood } from "../analysis/analyseNeighbourhood.js";
 import { defineTool } from "./defineTool.js";
 
 export const analyseNeighbourhoodTool = defineTool({
   name: "analyse_neighbourhood",
   description:
-    "Not yet implemented — Analyses POI density by category around a coordinate within a search radius.",
+    "POI density profile around a coordinate, grouped into six walking-distance domains (nightlife, dining, transit, greenSpace, retail, culture). Geoapify is queried once per domain at the requested radius; inner walking rings are partitioned client-side from returned distances at no extra credit cost. Every domain rating carries its venue count, radius, density and per-ring breakdown; full detail also includes up to five nearest sample POIs. Counts at the limitPerCategory ceiling are a floor — countCapped marks when density may be understated. A sources block reports each domain upstream as ok, partial, or unavailable. detail defaults to brief, which drops sample POIs and location coordinates; full keeps them. One set of upstream calls regardless of detail.",
   inputSchema: toolInputSchemas.analyse_neighbourhood,
-  handler: () => internalError("analyse_neighbourhood is not implemented yet"),
+  handler: (input, context) => analyseNeighbourhood(input, { signal: context?.signal }),
 });
