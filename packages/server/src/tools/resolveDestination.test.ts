@@ -1,9 +1,9 @@
 import { ambiguous, isToolError, type ResolvedLocation, ToolErrorCode } from "@bearings/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveDestinationTool } from "../../src/tools/resolveDestination.js";
-import { resolveDestination } from "../../src/upstream/nominatim.js";
+import { resolveDestination } from "../upstream/nominatim.js";
+import { resolveDestinationTool } from "./resolveDestination.js";
 
-vi.mock("../../src/upstream/nominatim.js", () => ({
+vi.mock("../upstream/nominatim.js", () => ({
   resolveDestination: vi.fn(),
 }));
 
