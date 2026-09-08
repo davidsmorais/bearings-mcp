@@ -97,6 +97,9 @@ describe("analyseNeighbourhood — dense urban", () => {
     expect(result.domains.nightlife?.rings.length).toBeGreaterThan(0);
     expect(result.domains.nightlife?.samplePois.length).toBeGreaterThan(0);
     expect(result.sources.nightlife?.status).toBe("ok");
+    // A domain returning the full 20 places is still one request — one credit, not two.
+    expect(result.credits.consumed).toBe(1);
+    expect(result.credits.byDomain.nightlife).toBe(1);
     expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
   });
 });
@@ -123,6 +126,49 @@ describe("analyseNeighbourhood — rural empty", () => {
     expect(result.domains.dining?.rating).toBe("none");
     expect(result.sources.nightlife?.status).toBe("ok");
     expect(result.sources.dining?.status).toBe("ok");
+    // Two requests left the process even though both came back empty — both are billed.
+    expect(result.credits.consumed).toBe(2);
+    expect(result.credits.byDomain).toEqual({ nightlife: 1, dining: 1 });
+  });
+
+  it("bills one credit per domain for a six-domain uncached call", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch(() => jsonResponse({ type: "FeatureCollection", features: [] }));
+
+    const result = await runComposition(
+      buildInput({ coordinates: ruralQuiet, detail: "full" }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+
+    expect(result.credits.consumed).toBe(6);
+    expect(Object.values(result.credits.byDomain)).toEqual([1, 1, 1, 1, 1, 1]);
+    if (result.detail !== "full") throw new Error("expected a full profile");
+    for (const domain of Object.values(result.domains)) {
+      expect(domain?.rating).toBe("none");
+    }
+  });
+
+  it("reports zero credits when an identical call is served from a warm cache", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch(() => jsonResponse({ type: "FeatureCollection", features: [] }));
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const input = buildInput({ categories: ["nightlife", "dining"], detail: "full" });
+
+    const first = await analyseNeighbourhood(input, { core });
+    const second = await analyseNeighbourhood(input, { core });
+
+    expect(isToolError(first)).toBe(false);
+    expect(isToolError(second)).toBe(false);
+    if (isToolError(first) || isToolError(second)) return;
+
+    expect(first.credits.consumed).toBe(2);
+    expect(second.credits.consumed).toBe(0);
+    expect(second.credits.byDomain).toEqual({ nightlife: 0, dining: 0 });
   });
 });
 
@@ -152,6 +198,32 @@ describe("analyseNeighbourhood — partial upstream failure", () => {
     expect(result.sources.nightlife?.status).toBe("unavailable");
     expect(result.domains.dining?.rating).toBeDefined();
     expect(result.sources.dining?.status).toBe("ok");
+    // The failed domain is absent from byDomain and adds nothing to the total.
+    expect(result.credits.byDomain.nightlife).toBeUndefined();
+    expect(result.credits.byDomain.dining).toBe(1);
+    expect(result.credits.consumed).toBe(1);
+  });
+
+  it("counts credits only for the domains that returned when several fail", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch((categories) => {
+      // nightlife and transit fail; the other four domains return empty.
+      if (categories?.includes("catering.bar") || categories?.includes("public_transport")) {
+        return new Response("boom", { status: 500 });
+      }
+      return jsonResponse({ type: "FeatureCollection", features: [] });
+    });
+
+    const result = await runComposition(buildInput({ coordinates: ruralQuiet }), fetch);
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+
+    expect(result.credits.consumed).toBe(4);
+    expect(Object.keys(result.credits.byDomain).sort()).toEqual(
+      ["culture", "dining", "greenSpace", "retail"].sort(),
+    );
   });
 });
 
@@ -203,6 +275,9 @@ describe("analyseNeighbourhood — brief vs full", () => {
     expect(full.domains.nightlife).toHaveProperty("samplePois");
     expect(brief.domains.nightlife).not.toHaveProperty("samplePois");
     expect("coordinates" in brief.location).toBe(false);
+    // brief drops bulk, not evidence — the credit block is identical at both levels.
+    expect(brief.credits).toEqual(full.credits);
+    expect(full.credits.consumed).toBe(1);
   });
 });
 

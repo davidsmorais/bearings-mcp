@@ -65,6 +65,9 @@ const toBriefDetail = (full: NeighbourhoodProfileFull): NeighbourhoodProfileBrie
     requestedCategories: full.requestedCategories,
     domains,
     sources: full.sources,
+    // `brief` drops bulk (sample POIs, echo coordinates), not evidence — the
+    // credit block is two small numbers and is carried through untouched.
+    credits: full.credits,
   };
 };
 
@@ -99,6 +102,9 @@ export async function analyseNeighbourhood(
 
   const domains = {} as Record<NeighbourhoodDomain, DomainProfile | null>;
   const sources = {} as Record<NeighbourhoodDomain, SourceOutcome>;
+  // A failed domain is absent from `byDomain` (contributes 0); a cache-served
+  // domain appears as an explicit 0. The two stay distinguishable.
+  const byDomain: Partial<Record<NeighbourhoodDomain, number>> = {};
   const failures: ToolError[] = [];
   let anySuccess = false;
 
@@ -119,6 +125,7 @@ export async function analyseNeighbourhood(
     }
 
     anySuccess = true;
+    byDomain[domain] = searchResult.credits;
     const places = searchResult.places;
     const { rings: ringCounts, missingDistance } = partitionByRing(places, rings);
     const count = places.length;
@@ -148,6 +155,8 @@ export async function analyseNeighbourhood(
     return worstOfErrors(failures);
   }
 
+  const consumed = Object.values(byDomain).reduce((sum, credits) => sum + credits, 0);
+
   const full: NeighbourhoodProfileFull = {
     detail: "full",
     location: locationFromCoordinates(input.coordinates),
@@ -155,6 +164,7 @@ export async function analyseNeighbourhood(
     requestedCategories: [...input.categories],
     domains,
     sources,
+    credits: { consumed, byDomain },
   };
 
   const composed: NeighbourhoodProfile = input.detail === "brief" ? toBriefDetail(full) : full;

@@ -35,6 +35,21 @@ export const DomainProfileSchema = DomainRatingSchema.extend({
 
 export type DomainProfile = z.infer<typeof DomainProfileSchema>;
 
+/**
+ * Geoapify credits the call consumed (root Invariant 6: a derived number carries
+ * its evidence). `consumed` is the sum of `byDomain`'s values. A domain whose
+ * query failed is absent from `byDomain` and contributes nothing; a cache-served
+ * domain appears as `0`. Under per-request Geoapify billing every present value
+ * is `0` or `1`, but `byDomain` still records which domains were billed, cached,
+ * or failed. `z.record` over the domain enum infers a partial record.
+ */
+export const NeighbourhoodCreditsSchema = z.object({
+  consumed: z.number().int().min(0),
+  byDomain: z.record(NeighbourhoodDomainSchema, z.number().int().min(0)),
+});
+
+export type NeighbourhoodCredits = z.infer<typeof NeighbourhoodCreditsSchema>;
+
 /** `brief` location: coordinates are redundant with the request and dropped. */
 const BriefLocationSchema = LocationSchema.omit({ coordinates: true }).strict();
 
@@ -45,6 +60,7 @@ const NeighbourhoodProfileFullSchema = z.object({
   requestedCategories: z.array(PoiCategorySchema),
   domains: z.record(NeighbourhoodDomainSchema, DomainProfileSchema.nullable()),
   sources: z.record(NeighbourhoodDomainSchema, SourceOutcomeSchema),
+  credits: NeighbourhoodCreditsSchema,
 });
 
 const NeighbourhoodProfileBriefSchema = z.object({
@@ -54,6 +70,7 @@ const NeighbourhoodProfileBriefSchema = z.object({
   requestedCategories: z.array(PoiCategorySchema),
   domains: z.record(NeighbourhoodDomainSchema, DomainRatingSchema.strict().nullable()),
   sources: z.record(NeighbourhoodDomainSchema, SourceOutcomeSchema),
+  credits: NeighbourhoodCreditsSchema,
 });
 
 /**

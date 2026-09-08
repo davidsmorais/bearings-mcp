@@ -237,9 +237,15 @@ describe("analyse_neighbourhood over an in-memory transport", () => {
       },
     });
     expect(result.isError).toBeFalsy();
-    const profile = result.structuredContent as { detail?: string; domains?: unknown };
+    const profile = result.structuredContent as {
+      detail?: string;
+      domains?: unknown;
+      credits?: { consumed?: number };
+    };
     expect(profile.detail).toBe("brief");
     expect(profile.domains).toBeDefined();
+    // The mocked searchPlaces reports credits: 1 (cacheHit: false); one domain queried.
+    expect(profile.credits?.consumed).toBe(1);
   });
 
   it("advertises a real tool description", async () => {

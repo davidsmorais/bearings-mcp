@@ -50,6 +50,7 @@ export { NeighbourhoodDomainSchema } from "./types/neighbourhoodDomain.js";
 export type {
   DomainProfile,
   DomainRating,
+  NeighbourhoodCredits,
   NeighbourhoodProfile,
   NeighbourhoodProfileBrief,
   NeighbourhoodProfileFull,
@@ -57,6 +58,7 @@ export type {
 export {
   DomainProfileSchema,
   DomainRatingSchema,
+  NeighbourhoodCreditsSchema,
   NeighbourhoodProfileSchema,
 } from "./types/neighbourhoodProfile.js";
 export type { PoiCategory } from "./types/poiCategory.js";
