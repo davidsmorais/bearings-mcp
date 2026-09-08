@@ -25,6 +25,8 @@ export type { Coordinates } from "./types/coordinates.js";
 export { CoordinatesSchema } from "./types/coordinates.js";
 export type { CountryCode } from "./types/countryCode.js";
 export { CountryCodeSchema } from "./types/countryCode.js";
+export type { DailyForecast, Forecast, WeatherCondition } from "./types/forecast.js";
+export { DailyForecastSchema, ForecastSchema, WeatherConditionSchema } from "./types/forecast.js";
 export type { Location } from "./types/location.js";
 export { LocationSchema } from "./types/location.js";
 export type { PoiCategory } from "./types/poiCategory.js";

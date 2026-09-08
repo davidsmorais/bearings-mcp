@@ -53,6 +53,13 @@
 - **Open-Meteo Horizon**:
   - Forecasts are only valid within a finite forward horizon (typically 16 days). Queries beyond this horizon must be rejected early with clear error messaging.
   - Hourly output arrays must be normalised to daily aggregates before returning to tool consumers.
+- **Open-Meteo client & normalisation decisions** (`upstream/openMeteo.ts`, DMS-495, 2026-09-08):
+  - `fetchForecast(coordinates, range, deps?)` requests the **hourly** series (`temperature_2m,precipitation,weather_code`, `timezone=auto`) and aggregates it ourselves — we do not use Open-Meteo's server-side `daily` block, so the daily `condition` is our decision.
+  - Horizon = **16 days**: `today .. today+15` (UTC). Range **entirely** outside (fully past, or starting past `today+15`) → `NOT_FOUND` with the latest available date, no upstream call. Range **partly** outside → clamped to the covered window, `truncated: true` + `truncationReason` on the `Forecast`; `requestedRange` vs `coveredRange` both reported.
+  - Daily `condition`: **modal WMO code among daytime hours (06:00–20:00 local)**, ties broken toward the higher (more disruptive) code; falls back to all 24h if a day has no daytime samples. Temp min/max and precipitation total use all 24h.
+  - WMO code → `WeatherCondition` map lives in `upstream/weatherCode.ts`; only codes Open-Meteo emits are mapped, an unmapped code logs to stderr and falls back to `overcast`.
+  - Coordinates are sent (and cache-keyed) at **4 dp** (~11 m) via `toFixed(4)` so trivial float differences don't fragment the cache.
+  - `get_destination_brief` is still a stub — wiring it (with Nager holidays + partial-failure `sources`) is DMS-497, blocked on DMS-496.
 - **Nager.Date Multi-Year Boundaries**:
   - API accepts queries strictly per calendar year. A stay spanning December 31 to January 2 requires two parallel queries merged in the normaliser.
   - Unsupported country codes must return `NOT_FOUND`, never an empty array pretending to be a complete calendar.
