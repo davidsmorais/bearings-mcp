@@ -1,4 +1,4 @@
-import { collapseAllNested, defaultStyles, JsonView } from "react-json-view-lite";
+import { collapseAllNested, darkStyles, JsonView } from "react-json-view-lite";
 import "react-json-view-lite/dist/index.css";
 
 export interface RawJsonPaneProps {
@@ -7,22 +7,27 @@ export interface RawJsonPaneProps {
   readonly meta: unknown;
 }
 
+const brandJsonStyles = {
+  ...darkStyles,
+  container: "_GzYRV font-mono text-xs",
+};
+
 const isRenderable = (value: unknown): value is object =>
   typeof value === "object" && value !== null;
 
 const Section = ({ label, value }: { readonly label: string; readonly value: unknown }) => (
   <section className="space-y-1">
-    <h4 className="font-mono text-xs uppercase tracking-wide text-neutral-500">{label}</h4>
+    <h4 className="font-mono text-xs uppercase tracking-wide text-[#00ffd5]">{label}</h4>
     {isRenderable(value) ? (
       <JsonView
         data={value}
-        style={defaultStyles}
+        style={brandJsonStyles}
         // Top two levels open, deeper nesting collapsed: enough to see the shape of a
         // response without the `analyse_neighbourhood` full payload filling the pane.
         shouldExpandNode={collapseAllNested}
       />
     ) : (
-      <p className="font-mono text-xs text-neutral-500">{String(value)}</p>
+      <p className="font-mono text-xs text-[#7b8fa8]">{String(value)}</p>
     )}
   </section>
 );

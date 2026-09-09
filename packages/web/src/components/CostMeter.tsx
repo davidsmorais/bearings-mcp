@@ -16,8 +16,8 @@ const Metric = ({
   readonly title?: string;
 }) => (
   <div className="flex items-baseline gap-1.5" title={title}>
-    <span className="font-mono text-xs uppercase tracking-wide text-neutral-500">{label}</span>
-    <span className="font-mono text-sm tabular-nums text-neutral-900">{value}</span>
+    <span className="font-mono text-xs uppercase tracking-wide text-[#7b8fa8]">{label}</span>
+    <span className="font-mono text-sm tabular-nums text-[#e0eaf5]">{value}</span>
   </div>
 );
 
@@ -31,7 +31,7 @@ export const CostMeter = ({ metrics, totalCredits }: CostMeterProps) => {
   const { tokens, credits, durationMs } = metrics;
 
   return (
-    <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-neutral-200 border-y bg-neutral-50 px-3 py-2">
+    <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-[#162638] border-b bg-[#030914] px-3 py-2">
       <Metric
         label="tokens"
         value={tokens ? `~${tokens.contentTokens}` : "—"}
@@ -60,7 +60,7 @@ export const CostMeter = ({ metrics, totalCredits }: CostMeterProps) => {
       />
       <Metric label="latency" value={`${Math.round(durationMs)}ms`} />
       {tokens ? (
-        <span className="text-neutral-400 text-xs">approximate · {tokens.tokenizer}</span>
+        <span className="font-mono text-xs text-[#3d4f65]">approximate · {tokens.tokenizer}</span>
       ) : null}
     </div>
   );

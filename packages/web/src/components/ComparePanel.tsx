@@ -18,7 +18,7 @@ const Delta = ({ entries }: { readonly entries: readonly CallHistoryEntry[] }) =
 
   if (leftTokens === undefined || rightTokens === undefined) {
     return (
-      <p className="text-neutral-500 text-sm">
+      <p className="text-sm text-[#7b8fa8]">
         Token delta unavailable — one of these responses carried no token accounting.
       </p>
     );
@@ -28,13 +28,13 @@ const Delta = ({ entries }: { readonly entries: readonly CallHistoryEntry[] }) =
   const ratio = leftTokens > 0 ? (rightTokens / leftTokens).toFixed(2) : "—";
 
   return (
-    <p className="font-mono text-neutral-800 text-sm tabular-nums">
+    <p className="font-mono text-sm tabular-nums text-[#e0eaf5]">
       {leftTokens} → {rightTokens} tokens{" "}
-      <span className={delta > 0 ? "text-amber-700" : "text-emerald-700"}>
+      <span className={delta > 0 ? "text-[#ff2d6a]" : "text-[#00ffd5]"}>
         ({delta >= 0 ? "+" : ""}
         {delta}, ×{ratio})
       </span>
-      <span className="ml-3 text-neutral-500">
+      <span className="ml-3 text-[#7b8fa8]">
         {left?.metrics.credits?.consumed ?? 0} → {right?.metrics.credits?.consumed ?? 0} credits
       </span>
     </p>
@@ -49,8 +49,8 @@ const Delta = ({ entries }: { readonly entries: readonly CallHistoryEntry[] }) =
 export const ComparePanel = ({ entries, totalCredits }: ComparePanelProps) => {
   if (entries.length < 2) {
     return (
-      <section className="rounded border border-neutral-200 border-dashed bg-white px-3 py-2">
-        <p className="text-neutral-500 text-sm">
+      <section className="rounded border border-dashed border-[#1a2d42] bg-[#06101e]/60 px-3 py-2">
+        <p className="text-sm text-[#7b8fa8]">
           Pin two calls in the history to compare them — brief against full, or any two inputs, with
           the token delta between them.
         </p>
@@ -60,7 +60,7 @@ export const ComparePanel = ({ entries, totalCredits }: ComparePanelProps) => {
 
   return (
     <section className="space-y-3">
-      <div className="rounded border border-neutral-200 bg-neutral-50 px-3 py-2">
+      <div className="rounded border border-[#162638] bg-[#0a1829] px-3 py-2">
         <Delta entries={entries} />
       </div>
       <div className="grid gap-3 md:grid-cols-2">

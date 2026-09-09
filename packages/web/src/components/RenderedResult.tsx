@@ -27,13 +27,13 @@ const SourceMapSchema = z
   .refine((value) => Object.keys(value).length > 0);
 
 const STATUS_STYLES: Record<string, string> = {
-  ok: "bg-emerald-100 text-emerald-900",
-  partial: "bg-amber-100 text-amber-900",
-  unavailable: "bg-red-100 text-red-900",
+  ok: "border border-emerald-500/30 bg-emerald-950/40 text-emerald-300",
+  partial: "border border-amber-500/30 bg-amber-950/40 text-amber-300",
+  unavailable: "border border-[#ff2d6a]/40 bg-[#ff2d6a]/20 text-[#ff5c8a]",
 };
 
 const FieldLabel = ({ children }: { readonly children: string }) => (
-  <span className="font-mono text-xs text-neutral-500">{children}</span>
+  <span className="font-mono text-xs text-[#7b8fa8]">{children}</span>
 );
 
 const DomainMap = ({ value }: { readonly value: z.infer<typeof DomainMapSchema> }) => {
@@ -46,18 +46,18 @@ const DomainMap = ({ value }: { readonly value: z.infer<typeof DomainMapSchema> 
     <div className="space-y-2">
       {entries.map(([domain, rating]) => (
         <div key={domain} className="grid grid-cols-[8rem_1fr_auto] items-center gap-3">
-          <span className="font-mono text-sm text-neutral-800">{domain}</span>
+          <span className="font-mono text-sm text-[#e0eaf5]">{domain}</span>
           {rating ? (
             <>
               <DensityBar count={rating.count} scaleMax={scaleMax} capped={rating.countCapped} />
-              <span className="font-mono text-sm tabular-nums text-neutral-800">
+              <span className="font-mono text-sm tabular-nums text-[#00ffd5]">
                 {rating.count}
                 {rating.countCapped ? "+" : ""}{" "}
-                <span className="text-neutral-500">{rating.rating}</span>
+                <span className="text-[#7b8fa8]">{rating.rating}</span>
               </span>
             </>
           ) : (
-            <span className="col-span-2 font-mono text-sm text-neutral-400">not queried</span>
+            <span className="col-span-2 font-mono text-sm text-[#3d4f65]">not queried</span>
           )}
         </div>
       ))}
@@ -71,7 +71,7 @@ const SourceMap = ({ value }: { readonly value: z.infer<typeof SourceMapSchema> 
       <span
         key={source}
         className={`rounded px-2 py-0.5 font-mono text-xs ${
-          STATUS_STYLES[outcome.status] ?? "bg-neutral-100 text-neutral-800"
+          STATUS_STYLES[outcome.status] ?? "border border-[#162638] bg-[#0a1829] text-[#e0eaf5]"
         }`}
         title={outcome.note ?? outcome.error?.message}
       >
@@ -83,12 +83,15 @@ const SourceMap = ({ value }: { readonly value: z.infer<typeof SourceMapSchema> 
 
 const Credits = ({ value }: { readonly value: z.infer<typeof NeighbourhoodCreditsSchema> }) => (
   <div className="space-y-1">
-    <p className="font-mono text-sm text-neutral-800">
+    <p className="font-mono text-sm text-[#e0eaf5]">
       {value.consumed} Geoapify {value.consumed === 1 ? "credit" : "credits"}
     </p>
     <div className="flex flex-wrap gap-2">
       {Object.entries(value.byDomain).map(([domain, credits]) => (
-        <span key={domain} className="font-mono text-xs text-neutral-500">
+        <span
+          key={domain}
+          className="rounded border border-[#162638] bg-[#0a1829] px-2 py-0.5 font-mono text-xs text-[#7b8fa8]"
+        >
           {domain}: {credits}
         </span>
       ))}
@@ -97,7 +100,7 @@ const Credits = ({ value }: { readonly value: z.infer<typeof NeighbourhoodCredit
 );
 
 const Scalar = ({ value }: { readonly value: unknown }) => (
-  <span className="font-mono text-sm text-neutral-800">
+  <span className="font-mono text-sm text-[#e0eaf5]">
     {value === null ? "null" : String(value)}
   </span>
 );
@@ -125,7 +128,7 @@ const renderValue = (value: unknown, path: string): ReactElement => {
 
   if (Array.isArray(value)) {
     if (value.length === 0) {
-      return <span className="font-mono text-sm text-neutral-400">empty</span>;
+      return <span className="font-mono text-sm text-[#3d4f65]">empty</span>;
     }
     return (
       <ol className="space-y-2">
@@ -135,7 +138,7 @@ const renderValue = (value: unknown, path: string): ReactElement => {
             // response and is never reordered or spliced.
             // biome-ignore lint/suspicious/noArrayIndexKey: static, never-reordered list
             key={`${path}[${index}]`}
-            className="border-neutral-200 border-l pl-3"
+            className="border-[#1a2d42] border-l pl-3"
           >
             {renderValue(item, `${path}[${index}]`)}
           </li>

@@ -1,6 +1,6 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 
-type FormFieldKind = "string" | "number" | "boolean" | "enum" | "object" | "array";
+type FormFieldKind = "string" | "number" | "boolean" | "enum" | "object" | "array" | "date";
 
 export interface FormFieldDescriptor {
   name: string;
@@ -11,6 +11,8 @@ export interface FormFieldDescriptor {
   default?: unknown;
   min?: number;
   max?: number;
+  step?: number | "any";
+  isInteger?: boolean;
   minLength?: number;
   maxLength?: number;
   enumOptions?: readonly string[];
@@ -81,6 +83,9 @@ const inferKind = (schema: JsonSchema): FormFieldKind => {
   if (schema.type === "boolean") {
     return "boolean";
   }
+  if (schema.type === "string" && schema.format === "date") {
+    return "date";
+  }
   return "string";
 };
 
@@ -92,6 +97,8 @@ const schemaToField = (
 ): FormFieldDescriptor => {
   const resolved = unwrapSchema(schema);
   const kind = inferKind(resolved);
+  const isInteger = resolved.type === "integer";
+  const step = kind === "number" ? (isInteger ? 1 : "any") : undefined;
 
   const base: FormFieldDescriptor = {
     name,
@@ -102,6 +109,8 @@ const schemaToField = (
     default: resolved.default,
     min: asNumber(resolved.minimum),
     max: asNumber(resolved.maximum),
+    step,
+    isInteger: kind === "number" ? isInteger : undefined,
     minLength: asNumber(resolved.minLength),
     maxLength: asNumber(resolved.maxLength),
   };
@@ -176,6 +185,7 @@ export const buildDefaultValues = (fields: FormFieldDescriptor[]): Record<string
 
     switch (field.kind) {
       case "string":
+      case "date":
         return "";
       case "number":
         // Left blank rather than defaulting to `field.min` — for a schema with no

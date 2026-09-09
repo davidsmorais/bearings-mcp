@@ -65,15 +65,18 @@ describe("zodSchemaToFormFields", () => {
     expect(lat.kind).toBe("number");
     expect(lat.min).toBe(-90);
     expect(lat.max).toBe(90);
+    expect(lat.step).toBe("any");
+    expect(lat.isInteger).toBe(false);
 
     // `stay` is TimeWindowSchema, an object wrapped in two `.refine()` calls
     // (ZodEffects). With effectStrategy: "input" it must still resolve to its
     // underlying object shape rather than falling through to a bare "string" field.
+    // Date fields (z.string().date()) must resolve to the "date" kind.
     const stay = findField(fields, "stay");
     expect(stay.kind).toBe("object");
     const stayFields = stay.fields ?? [];
-    expect(findField(stayFields, "start").kind).toBe("string");
-    expect(findField(stayFields, "end").kind).toBe("string");
+    expect(findField(stayFields, "start").kind).toBe("date");
+    expect(findField(stayFields, "end").kind).toBe("date");
   });
 
   it("renders analyse_neighbourhood's categories as an array of enum items", () => {
@@ -106,6 +109,8 @@ describe("zodSchemaToFormFields", () => {
     expect(radiusM.min).toBe(100);
     expect(radiusM.max).toBe(5000);
     expect(radiusM.default).toBe(500);
+    expect(radiusM.step).toBe(1);
+    expect(radiusM.isInteger).toBe(true);
   });
 });
 

@@ -19,9 +19,9 @@ export interface SchemaFormProps {
 }
 
 const inputClassName =
-  "w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900";
+  "w-full rounded border border-[#1a2d42] bg-[#06101e] px-3 py-2 text-sm text-[#e0eaf5] placeholder:text-[#3d4f65] focus:border-[#00ffd5] focus:outline-none transition-colors";
 
-const labelClassName = "mb-1 block text-sm font-medium text-neutral-700";
+const labelClassName = "mb-1 block text-sm font-medium text-[#7b8fa8]";
 
 const renderFieldInput = (
   field: FormFieldDescriptor,
@@ -43,6 +43,18 @@ const renderFieldInput = (
           className={inputClassName}
         />
       );
+    case "date":
+      return (
+        <input
+          id={field.path}
+          type="date"
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) =>
+            onChange(field.path, event.target.value || (field.required ? "" : undefined))
+          }
+          className={`${inputClassName} [color-scheme:dark]`}
+        />
+      );
     case "number":
       return (
         <input
@@ -51,7 +63,7 @@ const renderFieldInput = (
           value={typeof value === "number" ? value : ""}
           min={field.min}
           max={field.max}
-          step={1}
+          step={field.step ?? (field.isInteger ? 1 : "any")}
           onChange={(event) => {
             // valueAsNumber (not Number(event.target.value)) so an empty or
             // still-incomplete numeric string (e.g. "1e") reports NaN instead of a
@@ -70,7 +82,7 @@ const renderFieldInput = (
           type="checkbox"
           checked={Boolean(value)}
           onChange={(event) => onChange(field.path, event.target.checked)}
-          className="h-4 w-4 rounded border-neutral-300"
+          className="h-4 w-4 rounded border-[#1a2d42] bg-[#06101e] accent-[#00ffd5]"
         />
       );
     case "enum":
@@ -91,8 +103,10 @@ const renderFieldInput = (
       );
     case "object":
       return (
-        <fieldset className="space-y-3 rounded border border-neutral-200 p-3">
-          <legend className="px-1 text-sm font-medium text-neutral-800">{field.name}</legend>
+        <fieldset className="space-y-3 rounded border border-[#162638] bg-[#030810]/40 p-3">
+          <legend className="px-1 font-mono text-sm font-medium text-[#00ffd5]">
+            {field.name}
+          </legend>
           {(field.fields ?? []).map((nestedField) => renderField(nestedField, values, onChange))}
         </fieldset>
       );
@@ -104,7 +118,7 @@ const renderFieldInput = (
             {(field.item.enumOptions ?? []).map((option) => {
               const checked = selected.includes(option);
               return (
-                <label key={option} className="flex items-center gap-2 text-sm text-neutral-800">
+                <label key={option} className="flex items-center gap-2 text-sm text-[#e0eaf5]">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -114,7 +128,7 @@ const renderFieldInput = (
                         : selected.filter((entry) => entry !== option);
                       onChange(field.path, next);
                     }}
-                    className="h-4 w-4 rounded border-neutral-300"
+                    className="h-4 w-4 rounded border-[#1a2d42] bg-[#06101e] accent-[#00ffd5]"
                   />
                   {option}
                 </label>
@@ -124,7 +138,7 @@ const renderFieldInput = (
         );
       }
       return (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-[#7b8fa8]">
           Array field &quot;{field.name}&quot; is not yet supported by the generator.
         </p>
       );
@@ -139,7 +153,7 @@ const renderField = (
   if (field.kind === "object") {
     return (
       <div key={field.path} className="space-y-2">
-        {field.description ? <p className="text-xs text-neutral-500">{field.description}</p> : null}
+        {field.description ? <p className="text-xs text-[#7b8fa8]">{field.description}</p> : null}
         {renderFieldInput(field, values, onChange)}
       </div>
     );
@@ -151,7 +165,7 @@ const renderField = (
         {field.name}
         {field.required ? "" : " (optional)"}
       </label>
-      {field.description ? <p className="text-xs text-neutral-500">{field.description}</p> : null}
+      {field.description ? <p className="text-xs text-[#7b8fa8]">{field.description}</p> : null}
       {renderFieldInput(field, values, onChange)}
     </div>
   );
@@ -213,7 +227,7 @@ export const SchemaForm = ({ schema, onSubmit, pending }: SchemaFormProps) => {
       {validationMessage ? (
         <div
           role="alert"
-          className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800"
+          className="rounded border border-[#ff2d6a]/40 bg-[#ff2d6a]/10 px-3 py-2 text-sm text-[#ff5c8a]"
         >
           {validationMessage}
         </div>
@@ -222,10 +236,10 @@ export const SchemaForm = ({ schema, onSubmit, pending }: SchemaFormProps) => {
       <button
         type="submit"
         disabled={invalid || pending}
-        className={`rounded px-4 py-2 font-medium text-sm ${
+        className={`rounded px-4 py-2 font-mono font-medium text-sm transition-all ${
           invalid || pending
-            ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
-            : "bg-neutral-800 text-white hover:bg-neutral-700"
+            ? "cursor-not-allowed border border-[#1a2d42] bg-[#0a1829] text-[#4a5f78]"
+            : "border border-[#00ffd5]/60 bg-[#00ffd5]/15 text-[#00ffd5] hover:bg-[#00ffd5] hover:text-[#030810] shadow-[0_0_12px_rgba(0,255,213,0.15)]"
         }`}
         title={invalid ? "Fix the validation error first" : undefined}
       >

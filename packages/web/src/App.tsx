@@ -12,13 +12,13 @@ import { useCallHistory } from "@/lib/callHistory";
 import { toolInputSchemas } from "@/lib/toolSchemas";
 
 const Disconnected = ({ error }: { readonly error: Error }) => (
-  <div className="rounded border border-amber-300 bg-amber-50 p-4 text-sm">
-    <p className="font-medium text-amber-900">Not connected to a Bearings MCP server.</p>
-    <p className="mt-2 text-amber-900">Start one over the HTTP transport:</p>
-    <pre className="mt-2 overflow-x-auto rounded bg-amber-100 px-3 py-2 font-mono text-amber-900 text-xs">
+  <div className="rounded border border-amber-500/30 bg-amber-950/20 p-4 text-sm">
+    <p className="font-medium text-amber-200">Not connected to a Bearings MCP server.</p>
+    <p className="mt-2 text-amber-300">Start one over the HTTP transport:</p>
+    <pre className="mt-2 overflow-x-auto rounded border border-amber-500/20 bg-[#06101e] px-3 py-2 font-mono text-amber-200 text-xs">
       pnpm --filter @bearings/server build{"\n"}pnpm --filter @bearings/server start:http
     </pre>
-    <p className="mt-2 font-mono text-amber-800 text-xs">{error.message}</p>
+    <p className="mt-2 font-mono text-amber-400/80 text-xs">{error.message}</p>
   </div>
 );
 
@@ -37,10 +37,10 @@ export const App = () => {
   const schemaMissing = activeTool !== undefined && !hasSchema(activeTool);
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-6 font-sans text-neutral-900">
-      <header className="border-neutral-200 border-b pb-4">
-        <h1 className="font-semibold text-2xl">Bearings Inspector</h1>
-        <p className="mt-1 text-neutral-600 text-sm">
+    <main className="mx-auto max-w-6xl space-y-6 p-6 font-sans text-[#e0eaf5]">
+      <header className="border-b border-[#162638] pb-4">
+        <h1 className="font-semibold text-2xl tracking-tight text-[#e0eaf5]">Bearings Inspector</h1>
+        <p className="mt-1 text-sm text-[#7b8fa8]">
           Development inspector for the Bearings MCP server. Forms are generated from the same Zod
           schemas the server validates with — nothing here is hand-written per tool. Token counts
           are approximate and come from the server's own envelope.
@@ -49,7 +49,7 @@ export const App = () => {
 
       {toolList.isError ? <Disconnected error={toolList.error as Error} /> : null}
       {toolList.isPending ? (
-        <p className="font-mono text-neutral-500 text-sm">connecting…</p>
+        <p className="animate-pulse font-mono text-sm text-[#00ffd5]">connecting…</p>
       ) : null}
 
       {toolList.isSuccess ? (
@@ -60,7 +60,7 @@ export const App = () => {
             {schemaMissing ? (
               // Invariant 2 has been broken upstream if this ever renders: the server
               // advertises a tool whose schema never made it into packages/shared.
-              <div className="rounded border border-red-300 bg-red-50 p-3 text-red-900 text-sm">
+              <div className="rounded border border-[#ff2d6a]/40 bg-[#ff2d6a]/10 p-3 text-sm text-[#ff5c8a]">
                 <p className="font-medium">No schema for “{activeTool}”.</p>
                 <p className="mt-1">
                   The server advertises this tool but `packages/shared` has no input schema for it,

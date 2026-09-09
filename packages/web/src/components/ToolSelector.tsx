@@ -28,25 +28,23 @@ export const ToolSelector = ({ tools, selected, onSelect }: ToolSelectorProps) =
 
   return (
     <section className="space-y-2">
-      <label htmlFor="tool-select" className="block font-medium text-neutral-700 text-sm">
+      <label htmlFor="tool-select" className="block font-medium text-sm text-[#7b8fa8]">
         Tool
       </label>
       <select
         id="tool-select"
         value={selected ?? ""}
         onChange={(event) => onSelect(event.target.value)}
-        className="w-full rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-neutral-900 text-sm"
+        className="w-full rounded border border-[#1a2d42] bg-[#06101e] px-3 py-2 font-mono text-sm text-[#e0eaf5] focus:border-[#00ffd5] focus:outline-none transition-colors"
       >
         {tools.map((tool) => (
-          <option key={tool.name} value={tool.name}>
+          <option key={tool.name} value={tool.name} className="bg-[#06101e] text-[#e0eaf5]">
             {tool.name}
             {hasSchema(tool.name) ? "" : " (no local schema)"}
           </option>
         ))}
       </select>
-      {description ? (
-        <p className="text-neutral-600 text-xs leading-relaxed">{description}</p>
-      ) : null}
+      {description ? <p className="text-xs leading-relaxed text-[#7b8fa8]">{description}</p> : null}
     </section>
   );
 };

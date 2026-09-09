@@ -1,4 +1,8 @@
-import { EchoInputSchema, ResolveDestinationInputSchema } from "@bearings/shared";
+import {
+  EchoInputSchema,
+  GetDestinationBriefInputSchema,
+  ResolveDestinationInputSchema,
+} from "@bearings/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SchemaForm } from "@/components/SchemaForm";
@@ -51,5 +55,24 @@ describe("SchemaForm submission", () => {
 
     expect(screen.getByRole("button").hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button").textContent).toContain("calling");
+  });
+
+  it("renders date fields as datepickers and allows decimal coordinates", () => {
+    render(
+      <SchemaForm schema={GetDestinationBriefInputSchema} onSubmit={vi.fn()} pending={false} />,
+    );
+
+    const startDate = screen.getByLabelText(/^start/);
+    expect(startDate.getAttribute("type")).toBe("date");
+
+    const endDate = screen.getByLabelText(/^end/);
+    expect(endDate.getAttribute("type")).toBe("date");
+
+    const latInput = screen.getByLabelText(/^lat/);
+    expect(latInput.getAttribute("type")).toBe("number");
+    expect(latInput.getAttribute("step")).toBe("any");
+
+    fireEvent.change(latInput, { target: { value: "38.7115" } });
+    expect((latInput as HTMLInputElement).value).toBe("38.7115");
   });
 });

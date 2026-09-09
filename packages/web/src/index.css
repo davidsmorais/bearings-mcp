@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+:root {
+  --brand-bg: #030810;
+  --brand-surface: #06101e;
+  --brand-surface-2: #0a1829;
+  --brand-elevated: #0e2035;
+  --brand-neon: #00ffd5;
+  --brand-neon-bright: #33ffe0;
+  --brand-neon-dim: #00ccaa;
+  --brand-magenta: #ff2d6a;
+  --brand-text: #e0eaf5;
+  --brand-text-muted: #7b8fa8;
+  --brand-text-dim: #3d4f65;
+  --brand-border: #162638;
+}
+
+body {
+  background-color: #030810;
+  color: #e0eaf5;
+  min-height: 100vh;
+}
+
+/* Custom dark scrollbar matching davidmorais.com aesthetics */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #06101e;
+}
+::-webkit-scrollbar-thumb {
+  background: #1a2d42;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffd588;
+}

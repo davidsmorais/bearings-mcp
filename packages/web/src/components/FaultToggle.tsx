@@ -25,16 +25,16 @@ export const FaultToggle = ({ faults, onChange, pending }: FaultToggleProps) => 
   const armed = Object.keys(faults).length;
 
   return (
-    <section className="rounded border border-neutral-300 border-dashed bg-white p-3">
+    <section className="rounded border border-dashed border-[#1a2d42] bg-[#06101e] p-3">
       <header className="mb-2 flex items-center justify-between">
-        <h3 className="font-mono text-neutral-700 text-sm">
+        <h3 className="font-mono text-sm text-[#7b8fa8]">
           fault injection{armed > 0 ? ` · ${armed} armed` : ""}
         </h3>
         <button
           type="button"
           onClick={() => onChange({})}
           disabled={pending || armed === 0}
-          className="rounded px-2 py-0.5 font-mono text-neutral-600 text-xs hover:bg-neutral-100 disabled:opacity-40"
+          className="rounded px-2 py-0.5 font-mono text-xs text-[#7b8fa8] hover:bg-[#0e2035] hover:text-[#e0eaf5] disabled:opacity-40 transition-colors"
         >
           clear all
         </button>
@@ -43,7 +43,7 @@ export const FaultToggle = ({ faults, onChange, pending }: FaultToggleProps) => 
       <div className="space-y-2">
         {FAULT_HOSTS.map((host: FaultHost) => (
           <div key={host} className="flex items-center gap-2">
-            <label htmlFor={`fault-${host}`} className="w-28 font-mono text-neutral-700 text-xs">
+            <label htmlFor={`fault-${host}`} className="w-28 font-mono text-xs text-[#7b8fa8]">
               {host}
             </label>
             <select
@@ -60,11 +60,13 @@ export const FaultToggle = ({ faults, onChange, pending }: FaultToggleProps) => 
                 }
                 onChange(next);
               }}
-              className="flex-1 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-neutral-900 text-xs"
+              className="flex-1 rounded border border-[#1a2d42] bg-[#0a1829] px-2 py-1 font-mono text-xs text-[#e0eaf5] focus:border-[#00ffd5] focus:outline-none transition-colors"
             >
-              <option value="">healthy</option>
+              <option value="" className="bg-[#0a1829] text-[#e0eaf5]">
+                healthy
+              </option>
               {FAULT_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
+                <option key={kind} value={kind} className="bg-[#0a1829] text-[#e0eaf5]">
                   {kind}
                 </option>
               ))}
@@ -73,7 +75,7 @@ export const FaultToggle = ({ faults, onChange, pending }: FaultToggleProps) => 
         ))}
       </div>
 
-      <p className="mt-2 text-neutral-500 text-xs">
+      <p className="mt-2 text-xs text-[#3d4f65]">
         A faulted host fails inside the HTTP client core, on the same path a real failure takes —
         the composition cannot tell the difference.
       </p>
