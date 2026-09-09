@@ -2,7 +2,7 @@
 
 > A place name goes in. A structured location, a stay forecast, or an honest walking-distance read on the neighbourhood comes out — with the upstream cost of every call on the table.
 
-Bearings is an MCP server with three tools backed by public HTTP APIs, plus a React inspector that proves the two never drift apart. Built as a take-home for a hotel chain's engineering team — the interesting parts are the constraints: a geocoder that bans your IP at 1 req/sec, a POI API metered in credits, and agent callers that pay by the token for every field you return.
+Bearings is an MCP server with three tools backed by public HTTP APIs, plus a React inspector that renders its forms from the server's own schemas — so the UI cannot drift from what the tools actually accept. Built as a take-home for a hotel chain's engineering team, and the interesting parts are all constraints: a geocoder that bans your IP at 1 req/sec, a POI API metered in credits, and agent callers that pay by the token for every field you hand back.
 
 ```
 resolve_destination          fuzzy name → structured Location
@@ -43,6 +43,32 @@ pnpm start:both   # both at once
 ```
 
 Each wraps `node packages/server/dist/cli.js [--transport …]`, which still works called directly.
+
+### Test the HTTP transport with curl
+
+Almada, Portugal — one command to start the server, one copy-paste to call a tool:
+
+```bash
+# terminal 1 — HTTP transport (needs GEOAPIFY_API_KEY in .env)
+pnpm start:http   # http://127.0.0.1:3000/mcp
+```
+
+```bash
+# terminal 2 — open a session, capture its id, call resolve_destination
+SID=$(curl -s -D - http://127.0.0.1:3000/mcp \
+  -H "content-type: application/json" \
+  -H "accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
+  | grep -i mcp-session-id | cut -d' ' -f2 | tr -d '\r')
+
+curl http://127.0.0.1:3000/mcp \
+  -H "content-type: application/json" \
+  -H "accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"resolve_destination","arguments":{"query":"Almada, Portugal"}}}'
+```
+
+The transport is stateful — reuse `$SID` for every later call. Missing or unknown `mcp-session-id` returns `400`/`404` (`packages/server/src/transports/http.ts:1`).
 
 Smoke-test stdio without a client:
 
@@ -135,7 +161,11 @@ Analyse the neighbourhood around 38.7115,-9.1449 within 500m, brief detail
 
 Each response carries `_meta["bearings/tokens"]` (token estimate) and, for `analyse_neighbourhood`, a `credits` block — the inspector's CostMeter reads the same fields.
 
-Here's that exact sequence, unedited, from an actual Claude Code session against this server:
+Put all three in one prompt and the model walks the chain itself — resolve the name, carry the `Location` forward, then read the neighbourhood off the coordinates it just got back:
+
+![One prompt — resolve Almada, brief the weather, analyse the neighbourhood — and the server is called three times in sequence, each tool's output feeding the next](./docs/images/bearings%20single%20prompt.png)
+
+That's the `resolve_destination → get_destination_brief → analyse_neighbourhood` tree from the top of this README, run end to end from a single sentence. The four shots below take the same flow apart, one tool at a time:
 
 ![resolve_destination("Lisbon") comes back unambiguous — one clear match, not a candidate list](./docs/images/bearings-resolve%20destination.png)
 
@@ -145,7 +175,7 @@ Here's that exact sequence, unedited, from an actual Claude Code session against
 
 ![The same call at detail: full — every domain's actual nearest POIs, not just counts](./docs/images/bearings-full%20detail.png)
 
-Worth noting what didn't get smoothed over: Geoapify's nightlife category threw a 400 on this run, and the model reported it as "unavailable," not silently as zero — even standing in Bairro Alto, Lisbon's own nightlife district. That's the `sources` block and the `ToolError` taxonomy doing their job, not a scripted demo.
+Worth noting what didn't get smoothed over: on this run Geoapify's nightlife query threw a 400 — the category adapter was sending `entertainment.nightclub`, which isn't a real leaf in [Geoapify's taxonomy](https://apidocs.geoapify.com/docs/places/#categories) — and the model reported it as "unavailable," not silently as zero, even standing in Bairro Alto, Lisbon's own nightlife district. The bad category has since been corrected (the domain now queries `entertainment` alongside `catering.bar` and `catering.pub`), and the screenshot above predates that fix. What it captures still holds: the `sources` block and the `ToolError` taxonomy degrade one failed domain without dragging down the other five.
 
 ### 5. Project-scoped alternative (`.mcp.json`)
 
@@ -267,6 +297,8 @@ Worst-case is `contentTokens × 2` — the MCP spec serialises into both `conten
 
 ## Upstream risks
 
+Four free public APIs, four different ways to get cut off mid-request. Each has one specific failure mode and one specific answer for it — nothing here degrades silently:
+
 | Risk | Trigger | Mitigation |
 |---|---|---|
 | **Nominatim IP ban** | >1 req/sec; missing `User-Agent` | Token-bucket at 1 req/sec; descriptive `User-Agent`; 30-day cache |
@@ -286,13 +318,13 @@ pnpm knip        # unused files, exports and dependencies
 pnpm lint        # biome check . — lint + format
 ```
 
-Upstreams are mocked at the HTTP client core boundary; fixtures are committed in `packages/server/test/fixtures/`. CI runs lint → knip → build → typecheck → test on every push. Manual checks that need a live network or a real client (rate limiter, quota, handshake, inspector click-through) are in `docs/manual-checks.md`.
+Upstreams are mocked at the HTTP client core boundary; fixtures are committed in `packages/server/test/fixtures/`. CI runs lint → knip → build → typecheck → test on every push. The handful of checks that only a live network or a real client can settle — the Nominatim rate limiter, the Geoapify quota path, the MCP handshake over a real transport, an inspector click-through, a clean-clone cold start — are run by hand.
 
 ---
 
 ## AI-assisted development
 
-Built with heavy AI assistance — forthrightly, since the role is an AI agents platform.
+Built with heavy AI assistance, said plainly — this is a submission for an AI agents platform, so a hidden workflow would rather defeat the point.
 
 - **Scaffolding — [Hocus](https://darkmagicstudios.com/products/hocus)**, a tool the author develops, used to scaffold agent personas, skills, and per-harness configuration so the same roster applies across Claude Code, Cursor, OpenCode and Antigravity.
 - **Planning → tickets → execution.** Architecture was planned in Claude, then broken into Linear tickets (`DMS-###`). Foundations first (shared schemas, HTTP core, walking-skeleton server), then feature tickets each in its own git worktree via Orca. Some upstream clients landed in parallel.

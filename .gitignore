@@ -17,6 +17,9 @@ dist/
 .code-review-graph/
 # AI
 graphify-out/
+
+# Local-only manual verification notes (not shipped)
+docs/manual-checks.md
 ## Hocus (https://darkmagicstudios.com/products/hocus)
 .hocus
 _spells
