@@ -1,7 +1,61 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** Walks up from `startDir` looking for a `.env`, returning the first hit. */
+function findEnvFile(startDir: string): string | undefined {
+  let dir = startDir;
+  for (;;) {
+    const candidate = join(dir, ".env");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      return undefined;
+    }
+    dir = parent;
+  }
+}
+
+/**
+ * Loads the nearest `.env` into process.env before any config is read.
+ *
+ * Two search roots, cwd first then this module's directory, because the server
+ * is launched both ways: `node packages/server/dist/cli.js` from the repo root
+ * (cwd wins) and spawned by Claude Desktop or an installed bin with an
+ * arbitrary cwd (the module walk still finds the checkout's `.env`).
+ *
+ * Node's loader leaves already-set variables alone, so a real environment
+ * always beats the file — a `.env` is a fallback, never an override.
+ */
+export function loadEnvFile(): void {
+  const path = findEnvFile(process.cwd()) ?? findEnvFile(dirname(fileURLToPath(import.meta.url)));
+  if (!path) {
+    return;
+  }
+
+  try {
+    process.loadEnvFile(path);
+  } catch {
+    // A malformed or unreadable .env must not stop a server whose variables are
+    // already in the real environment; assertRequiredEnv reports what is missing.
+  }
+}
+
+/**
+ * Names both ways to supply the key, because loadEnvFile() has already looked
+ * for a `.env` by the time this runs — reaching here means neither source had it.
+ */
+const MISSING_API_KEY_MESSAGE =
+  "GEOAPIFY_API_KEY environment variable is required but not set. " +
+  "Add it to a .env file at the repo root (cp .env.example .env) or export it in your shell. " +
+  "Free keys: https://www.geoapify.com/";
+
 /** Validates required environment variables before the server accepts connections. */
 export function assertRequiredEnv(): void {
   if (!process.env.GEOAPIFY_API_KEY?.trim()) {
-    console.error("GEOAPIFY_API_KEY environment variable is required but not set");
+    console.error(MISSING_API_KEY_MESSAGE);
     process.exit(1);
   }
 }

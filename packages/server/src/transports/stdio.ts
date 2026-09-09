@@ -2,7 +2,7 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { assertRequiredEnv } from "../env.js";
+import { assertRequiredEnv, loadEnvFile } from "../env.js";
 import { createServer } from "../server.js";
 
 export interface StdioTransportHandle {
@@ -30,6 +30,7 @@ export async function startStdioTransport(): Promise<StdioTransportHandle> {
 }
 
 async function main(): Promise<void> {
+  loadEnvFile();
   assertRequiredEnv();
   const handle = await startStdioTransport();
 

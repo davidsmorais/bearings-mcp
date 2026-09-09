@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { assertRequiredEnv } from "./env.js";
+import { assertRequiredEnv, loadEnvFile } from "./env.js";
 import { startHttpTransport } from "./transports/http.js";
 import { startStdioTransport } from "./transports/stdio.js";
 
@@ -38,6 +38,7 @@ interface TransportHandle {
 }
 
 async function main(): Promise<void> {
+  loadEnvFile();
   assertRequiredEnv();
   const mode = parseTransportMode(process.argv);
 

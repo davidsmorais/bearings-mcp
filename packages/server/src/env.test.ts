@@ -1,5 +1,62 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { allowedOrigins, assertRequiredEnv, httpHost, httpPort } from "./env.js";
+import { allowedOrigins, assertRequiredEnv, httpHost, httpPort, loadEnvFile } from "./env.js";
+
+describe("loadEnvFile", () => {
+  const cwd = process.cwd();
+  let root: string;
+
+  afterEach(() => {
+    process.chdir(cwd);
+    rmSync(root, { recursive: true, force: true });
+    delete process.env.BEARINGS_TEST_FROM_FILE;
+  });
+
+  /** Builds a throwaway tree with an optional `.env` at its root, then cds `depth` levels below it. */
+  const chdirInto = (envBody: string | undefined, depth = 0): void => {
+    root = mkdtempSync(join(tmpdir(), "bearings-env-"));
+    if (envBody !== undefined) {
+      writeFileSync(join(root, ".env"), envBody);
+    }
+    const leaf = join(root, ...Array.from({ length: depth }, (_, i) => `level-${i}`));
+    mkdirSync(leaf, { recursive: true });
+    process.chdir(leaf);
+  };
+
+  it("loads a .env sitting in the current directory", () => {
+    chdirInto("BEARINGS_TEST_FROM_FILE=loaded\n");
+
+    loadEnvFile();
+
+    expect(process.env.BEARINGS_TEST_FROM_FILE).toBe("loaded");
+  });
+
+  it("walks up to find a .env in an ancestor directory", () => {
+    chdirInto("BEARINGS_TEST_FROM_FILE=from-ancestor\n", 2);
+
+    loadEnvFile();
+
+    expect(process.env.BEARINGS_TEST_FROM_FILE).toBe("from-ancestor");
+  });
+
+  it("leaves a variable already present in the real environment untouched", () => {
+    chdirInto("BEARINGS_TEST_FROM_FILE=from-file\n");
+    process.env.BEARINGS_TEST_FROM_FILE = "from-shell";
+
+    loadEnvFile();
+
+    expect(process.env.BEARINGS_TEST_FROM_FILE).toBe("from-shell");
+  });
+
+  it("is a no-op when no .env exists on the path", () => {
+    chdirInto(undefined);
+
+    expect(() => loadEnvFile()).not.toThrow();
+    expect(process.env.BEARINGS_TEST_FROM_FILE).toBeUndefined();
+  });
+});
 
 describe("assertRequiredEnv", () => {
   afterEach(() => {
@@ -22,8 +79,9 @@ describe("assertRequiredEnv", () => {
     assertRequiredEnv();
 
     expect(stderr).toHaveBeenCalledWith(
-      "GEOAPIFY_API_KEY environment variable is required but not set",
+      expect.stringContaining("GEOAPIFY_API_KEY environment variable is required but not set"),
     );
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining("cp .env.example .env"));
     expect(exit).toHaveBeenCalledWith(1);
   });
 });
