@@ -3,10 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Bearings MCP monorepo — shared Zod schemas for server and React inspector",
+  "description": "Bearings MCP monorepo \u2014 shared Zod schemas for server and React inspector",
   "packageManager": "pnpm@11.25.0",
   "scripts": {
+    "dev": "pnpm --filter @bearings/shared run build && concurrently --kill-others --names server,inspector --prefix-colors cyan,magenta \"pnpm run dev:server\" \"pnpm run dev:web\"",
+    "dev:server": "pnpm --filter @bearings/server run dev",
+    "dev:web": "pnpm --filter @bearings/web run dev:open",
     "build": "pnpm -r run build",
+    "start": "node packages/server/dist/cli.js",
+    "start:http": "node packages/server/dist/cli.js --transport http",
+    "start:both": "node packages/server/dist/cli.js --transport both",
+    "preview": "pnpm --filter @bearings/web run preview",
     "test": "pnpm --filter @bearings/shared --filter @bearings/server --filter @bearings/web run test",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome check .",
@@ -16,6 +23,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
+    "concurrently": "^10.0.5",
     "knip": "^6.34.0",
     "typescript": "^5.8.2"
   }
