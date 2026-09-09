@@ -62,6 +62,10 @@ pnpm dev:server   # terminal 1 → http://127.0.0.1:3000/mcp
 pnpm dev:web      # terminal 2 → http://localhost:5173
 ```
 
+![Bearings Inspector — resolve_destination form and response, generated from the shared Zod schema](./docs/images/bearings%20inspector.png)
+
+Pick a tool, fill in the form, hit call. The token count, worst-case estimate, and latency in that response panel aren't mocked up for this screenshot — they're the server's own `_meta` block, read straight off the wire.
+
 ---
 
 ## Try it in Claude Code
@@ -130,6 +134,18 @@ Analyse the neighbourhood around 38.7115,-9.1449 within 500m, brief detail
 ```
 
 Each response carries `_meta["bearings/tokens"]` (token estimate) and, for `analyse_neighbourhood`, a `credits` block — the inspector's CostMeter reads the same fields.
+
+Here's that exact sequence, unedited, from an actual Claude Code session against this server:
+
+![resolve_destination("Lisbon") comes back unambiguous — one clear match, not a candidate list](./docs/images/bearings-resolve%20destination.png)
+
+![get_destination_brief for the resolved Lisbon location — a week of forecast plus a public-holiday check](./docs/images/bearings-destination%20brief.png)
+
+![analyse_neighbourhood at 38.7115,-9.1449 — six domains rated by density, with nightlife honestly reported as unavailable rather than zero](./docs/images/bearings-neighboorhood%20check.png)
+
+![The same call at detail: full — every domain's actual nearest POIs, not just counts](./docs/images/bearings-full%20detail.png)
+
+Worth noting what didn't get smoothed over: Geoapify's nightlife category threw a 400 on this run, and the model reported it as "unavailable," not silently as zero — even standing in Bairro Alto, Lisbon's own nightlife district. That's the `sources` block and the `ToolError` taxonomy doing their job, not a scripted demo.
 
 ### 5. Project-scoped alternative (`.mcp.json`)
 
@@ -235,7 +251,7 @@ Key invariants (see `AGENTS.md`):
 **`detail: brief | full`** — two independent cost axes. Tokens move freely with `detail` (a validated projection, same upstream calls). Geoapify credits move only upward and only by explicit opt-in: `limitPerCategory` defaults to 20 (one credit per domain), `brief` caps at 20, `full` may go to 40. Measured via `pnpm --filter @bearings/server measure:tokens` on the committed fixtures:
 
 | Tool | Detail | Bytes | Tokens | Worst-case | Δ vs full | Credits |
-|---|---|---|---:|---:|---:|---:|---:|
+|---|---|---:|---:|---:|---:|---:|
 | `resolve_destination` | brief | 171 | 51 | 102 | −54% | — |
 | `resolve_destination` | full | 329 | 111 | 222 | — | — |
 | `get_destination_brief` | brief | 689 | 233 | 466 | −19% | — |
