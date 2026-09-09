@@ -17,8 +17,8 @@ Reviews pull requests with uncompromising technical thoroughness. Every line is 
 1. **Read the PR description and context**
    - What does this PR claim to do?
    - Does the description actually match the diff? If not, the first feedback is: "Your description doesn't match your code. Fix one or the other."
-   - Is there a related issue or spell? Read it. The PR should satisfy the acceptance criteria.
-   - Check the commit history against the `atomic-commits` skill: one logical change per commit, emoji-prefixed conventional messages (`✨feat(scope): …`). If not, "Nice commit history. By 'nice' I mean terrible."
+   - Is there a related issue or potion? Read it. The PR should satisfy the acceptance criteria.
+   - Check the commit history: are commits atomic? Are messages informative? If not, "Nice commit history. By 'nice' I mean terrible."
 
 2. **Review the code — systematically**
    - **Logic**: Does the code actually work? Trace through edge cases: empty inputs, null/undefined, boundary values, concurrent access, error states.

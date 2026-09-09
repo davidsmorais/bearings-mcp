@@ -1,6 +1,6 @@
 ---
 name: atomic-commits
-description: Enforce one logical change per commit with emoji-prefixed conventional commit messages.
+description: Enforce one logical change per commit with clear, conventional commit messages.
 ---
 
 # Atomic Commits
@@ -24,40 +24,20 @@ Ensures every commit represents exactly one logical change, following convention
    - NOT: "fix bugs and add feature and update deps" — that's three commits
    - NOT: "refactor utils.ts" if it also touches 10 unrelated files — scope it
 
-2. **Use conventional commit format with emoji prefix**
+2. **Use conventional commit format**
    ```
-   <emoji><type>(<scope>): <imperative summary>
+   <type>(<scope>): <imperative summary>
 
    <optional body with motivation and rationale>
 
    <optional footer with breaking changes or issue references>
    ```
-   - Every commit message starts with the emoji for its type, immediately followed by the type name (no space between emoji and type)
-   - Types and emoji prefixes:
-
-   | Prefix | Use for |
-   |--------|---------|
-   | `✨feat` | New feature |
-   | `🐛fix` | Bug fix |
-   | `📝docs` | Documentation |
-   | `🔮refactor` | No behaviour change |
-   | `🚀perf` | Performance |
-   | `🤖ci` | Build, deps, CI/CD |
-   | `🧪test` | Tests |
-   | `📦build` | Build system |
-   | `🧹chore` | Lint, logs, TS errors, style-only changes |
-   | `revert` | Reverts a prior commit — no emoji; use `revert(<scope>): <summary>` |
-
-   - Scope: the module or package (optional but encouraged). Bearings scopes: `server`, `web`, `shared`, `upstream`, `analysis`
-   - Summary: imperative mood, lowercase, no trailing period, max 72 chars including emoji and type
+   - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `style`, `perf`, `ci`, `build`, `revert`
+   - Scope: the module, component, or file group (optional but encouraged)
+   - Summary: imperative, lowercase, no period, max 72 chars, no emoji
    - Body: wrap at 72 chars, explain *why* not just *what*
    - Breaking changes: add `BREAKING CHANGE:` in the footer
    - Issue references: `Fixes #123`, `Closes ENG-456`
-
-   Examples:
-   - `✨feat(server): add resolve_destination tool`
-   - `🐛fix(web): keep SchemaForm state updater pure`
-   - `🔮refactor(shared): extract CountryCodeSchema`
 
 3. **Split a messy working state**
    - `git diff --stat` to see which files are changed
