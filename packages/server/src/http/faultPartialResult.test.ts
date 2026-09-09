@@ -1,4 +1,4 @@
-import type { GetDestinationBriefInput } from "@bearings/shared";
+import { type GetDestinationBriefInput, ToolErrorCode } from "@bearings/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import nagerFixture from "../../test/fixtures/nager.json" with { type: "json" };
 import openMeteoFixture from "../../test/fixtures/open-meteo.json" with { type: "json" };
@@ -67,6 +67,35 @@ describe("an injected fault produces a real partial result", () => {
     expect(brief.sources.nager?.status).toBe("ok");
     expect(Array.isArray(brief.holidays)).toBe(true);
     // Nager was still called; only the faulted host was short-circuited.
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  // The issue names this case explicitly ("a weather timeout still returns holidays") —
+  // it is the reverse of the Nager case below, pinned to the TIMEOUT code so a
+  // regression that swallowed the timeout into a generic UPSTREAM_ERROR would be caught.
+  it("a weather timeout still returns holidays", async () => {
+    const fetch = vi.fn(fetchBoth);
+    setFaults({ "open-meteo": "timeout" });
+
+    const result = await composeDestinationBrief(input, {
+      core: createHttpCore({ fetch, clock: instantClock }),
+      now,
+    });
+
+    const brief = result as {
+      sources: {
+        openMeteo: { status: string; error?: { code: string } };
+        nager: { status: string };
+      };
+      holidays?: unknown[];
+      forecast?: unknown;
+    };
+    expect(brief.sources.openMeteo.status).toBe("unavailable");
+    expect(brief.sources.openMeteo.error?.code).toBe(ToolErrorCode.TIMEOUT);
+    expect(brief.forecast).toBeUndefined();
+    expect(brief.sources.nager.status).toBe("ok");
+    expect(Array.isArray(brief.holidays)).toBe(true);
+    // Only the faulted host was short-circuited; Nager was still fetched.
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
