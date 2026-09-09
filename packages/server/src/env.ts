@@ -59,3 +59,17 @@ export function allowedOrigins(): string[] {
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 }
+
+/**
+ * Whether the dev-only fault-injection seam is armed (`BEARINGS_FAULT_INJECTION`).
+ *
+ * Off unless the variable is set to `1` or `true`. When off, the HTTP core never consults
+ * the fault registry and the transport does not register the control route at all — an
+ * unset flag leaves no surface to reach, which is a stronger guarantee than a route that
+ * exists and refuses. Read per call rather than cached at module load so a test can set
+ * and unset it without reimporting the module.
+ */
+export function faultInjectionEnabled(): boolean {
+  const raw = process.env.BEARINGS_FAULT_INJECTION?.trim().toLowerCase();
+  return raw === "1" || raw === "true";
+}
