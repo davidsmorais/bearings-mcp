@@ -528,4 +528,98 @@ describe("get_destination_brief through the server envelope", () => {
     expect(sources.openMeteo.status).toBe("ok");
     expect(sources.nager.status).toBe("ok");
   });
+
+  it("reports fewer brief tokens than full tokens for the same fixture inputs (DMS-501)", async () => {
+    await connect(
+      hostRouter({
+        openMeteo: () => jsonResponse(openMeteoFixture),
+        nager: () => jsonResponse(nagerFixture.publicHolidays2026AT),
+      }) as typeof globalThis.fetch,
+    );
+
+    const full = await client.callTool({
+      name: "get_destination_brief",
+      arguments: { ...briefInput, detail: "full" },
+    });
+    const brief = await client.callTool({
+      name: "get_destination_brief",
+      arguments: { ...briefInput, detail: "brief" },
+    });
+
+    expect(full.isError).toBeFalsy();
+    expect(brief.isError).toBeFalsy();
+    expect(tokenMetaOf(brief).contentTokens).toBeLessThan(tokenMetaOf(full).contentTokens);
+  });
+});
+
+describe("brief is cheaper than full — token regression guard (DMS-501)", () => {
+  // Strict inequality only, no percentage floor: a floor is the harder guarantee but
+  // any fixture edit could trip it for reasons unrelated to shaping. The percentages
+  // themselves are recorded in MEMORY.md instead.
+
+  it("resolve_destination: brief reports fewer tokens than full", async () => {
+    mockedResolveDestination.mockResolvedValue({
+      name: "Lisbon",
+      coordinates: { lat: 38.7077507, lon: -9.1365919 },
+      countryCode: "PT",
+      displayName: "Lisbon, Portugal",
+      admin: { county: "Lisbon", municipality: "Lisbon" },
+      kind: "city",
+      importance: 0.76,
+      placeRank: 14,
+      boundingBox: [38.69, 38.79, -9.22, -9.08],
+      osmType: "relation",
+      osmId: 5400890,
+    });
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test-resolve-regression", version: "0" });
+    const server = createServer();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+
+    try {
+      const full = await client.callTool({
+        name: "resolve_destination",
+        arguments: { query: "Lisbon", detail: "full" },
+      });
+      const brief = await client.callTool({
+        name: "resolve_destination",
+        arguments: { query: "Lisbon", detail: "brief" },
+      });
+
+      expect(full.isError).toBeFalsy();
+      expect(brief.isError).toBeFalsy();
+      expect(tokenMetaOf(brief).contentTokens).toBeLessThan(tokenMetaOf(full).contentTokens);
+    } finally {
+      await client.close();
+      await server.close();
+      vi.clearAllMocks();
+    }
+  });
+
+  it("analyse_neighbourhood: brief reports fewer tokens than full", async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test-analyse-regression", version: "0" });
+    const server = createServer();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+
+    try {
+      const args = { coordinates: { lat: 38.7115, lon: -9.1449 } };
+      const full = await client.callTool({
+        name: "analyse_neighbourhood",
+        arguments: { ...args, detail: "full" },
+      });
+      const brief = await client.callTool({
+        name: "analyse_neighbourhood",
+        arguments: { ...args, detail: "brief" },
+      });
+
+      expect(full.isError).toBeFalsy();
+      expect(brief.isError).toBeFalsy();
+      expect(tokenMetaOf(brief).contentTokens).toBeLessThan(tokenMetaOf(full).contentTokens);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });
