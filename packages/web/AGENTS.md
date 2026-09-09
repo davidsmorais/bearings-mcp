@@ -15,15 +15,37 @@ Before writing anything here, the constraint that shapes every decision below: t
 ```
 packages/web/src/
   components/
-    ToolSelector.tsx
-    SchemaForm.tsx        generated from Zod, not hand-written per tool
-    ResponsePanel.tsx      rendered / raw JSON toggle
-    CostMeter.tsx           token + credit display
+    ToolSelector.tsx        names + descriptions from the live tools/list
+    SchemaForm.tsx          generated from Zod, not hand-written per tool
+    ResponsePanel.tsx       rendered / raw JSON toggle, loading and error states
+    RenderedResult.tsx      shape-dispatched renderer (see below)
+    RawJsonPane.tsx         react-json-view-lite over the whole envelope
+    DensityBar.tsx          a div with a width percentage
+    CostMeter.tsx           token + credit + latency display
+    CallHistory.tsx         every call this session, pin two to compare
+    ComparePanel.tsx        two pinned calls side by side with a token delta
+    FaultToggle.tsx         upstream failure simulation, hidden unless armed
   lib/
-    zodToForm.ts            zod-to-json-schema + field renderer
-    tokenEstimate.ts        gpt-tokenizer wrapper, labelled approximate
+    zodToForm.ts            zod-to-json-schema + field descriptors
+    callMetrics.ts          reads tokens/credits off the response envelope
+    callHistory.tsx         session call log + running Geoapify total
+    mcpClient.ts            memoised SDK Client over Streamable HTTP
   hooks/
+    useToolList.ts          tools/list
     useToolCall.ts          @tanstack/react-query wrapper around the HTTP transport
+    useFaultInjection.ts    /__dev/faults, absent when the server did not arm it
+```
+
+## Running it
+
+`packages/web` imports `@bearings/shared` through its `exports` map, which points at `dist/`.
+**Build shared before starting the dev server**, or module resolution fails with an error
+that does not say so:
+
+```bash
+pnpm --filter @bearings/shared build
+pnpm --filter @bearings/server build && node packages/server/dist/cli.js --transport http
+pnpm --filter @bearings/web dev
 ```
 
 ---
@@ -37,6 +59,9 @@ packages/web/src/
 - **No animation library.** CSS transitions cover the toggle states. This is devtools chrome, not a product with delight budget.
 - **Show cost, always.** Approximate token count and Geoapify credit spend render next to every call result, not tucked into a details panel. Label the token count as approximate in the UI copy — it's not Claude's actual tokenizer.
 - **`@tanstack/react-query` owns request state.** Loading, error, and success states come from it. Don't hand-roll a second state machine on top.
+- **Never tokenise in the browser.** Token counts are read from `_meta["bearings/tokens"]` on the response, parsed with the shared `TokenMetaSchema`. `gpt-tokenizer` carries megabytes of rank data and must never enter this bundle — that is why it lives behind the `@bearings/shared/tokens` subpath and not the main barrel. Reading the server's number also means the two can never disagree.
+- **The rendered response view dispatches on shape, never on tool name.** `RenderedResult` `safeParse`s values against schemas that already exist in `packages/shared` (`DomainRatingSchema`, `SourceOutcomeSchema`, `NeighbourhoodCreditsSchema`) and falls back to a generic key/value tree. This is what keeps "adding a tool needs zero UI changes" true for output as well as input: an unrecognised response degrades to readable, not to blank. A file in `components/` named after a tool means this approach has been abandoned.
+- **An optional field with no schema default starts absent, not blank.** Seeding `""` or the first enum member dispatches a value the user never chose, and for a bounded optional like `CountryCode` it makes the form permanently invalid until they fill a field the tool never required.
 
 ---
 
