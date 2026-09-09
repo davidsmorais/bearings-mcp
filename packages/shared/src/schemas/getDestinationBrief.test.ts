@@ -20,10 +20,15 @@ describe("GetDestinationBriefInputSchema", () => {
     }
   });
 
-  it("rejects missing location", () => {
+  it("rejects missing location with a recoverable message", () => {
     const input = { stay: { start: "2026-06-01", end: "2026-06-07" } };
     const result = GetDestinationBriefInputSchema.safeParse(input);
     expect(result.success).toBe(false);
+    if (!result.success) {
+      const error = zodErrorToToolError(result.error, input);
+      expect(error.field).toBe("location");
+      expect(error.message).toContain("location");
+    }
   });
 
   it("rejects invalid countryCode on nested location", () => {

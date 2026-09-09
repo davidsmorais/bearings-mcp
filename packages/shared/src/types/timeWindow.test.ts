@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { zodErrorToToolError } from "../toToolError.js";
 import { MAX_STAY_NIGHTS, TimeWindowSchema } from "./timeWindow.js";
 
 describe("TimeWindowSchema", () => {
@@ -10,20 +11,26 @@ describe("TimeWindowSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects an invalid start date format", () => {
-    const result = TimeWindowSchema.safeParse({
-      start: "06/01/2026",
-      end: "2026-06-07",
-    });
+  it("rejects an invalid start date format with a field-named message", () => {
+    const input = { start: "06/01/2026", end: "2026-06-07" };
+    const result = TimeWindowSchema.safeParse(input);
     expect(result.success).toBe(false);
+    if (!result.success) {
+      const error = zodErrorToToolError(result.error, input);
+      expect(error.field).toBe("start");
+      expect(error.message).toContain("start");
+    }
   });
 
-  it("rejects an invalid end date format", () => {
-    const result = TimeWindowSchema.safeParse({
-      start: "2026-06-01",
-      end: "not-a-date",
-    });
+  it("rejects an invalid end date format with a field-named message", () => {
+    const input = { start: "2026-06-01", end: "not-a-date" };
+    const result = TimeWindowSchema.safeParse(input);
     expect(result.success).toBe(false);
+    if (!result.success) {
+      const error = zodErrorToToolError(result.error, input);
+      expect(error.field).toBe("end");
+      expect(error.message).toContain("end");
+    }
   });
 
   it("rejects end before start with a field-named message", () => {

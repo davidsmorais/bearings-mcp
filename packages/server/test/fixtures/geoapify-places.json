@@ -1,4 +1,5 @@
 {
+  "_note": "Hand-shaped, NOT captured live — Geoapify Places needs a keyed request (GEOAPIFY_API_KEY) and spends daily credits, so a committed live capture is neither reproducible nor free. Each feature matches the documented GeoJSON shape of GET https://api.geoapify.com/v2/places (properties.name/lat/lon/place_id/categories/distance) that upstream/geoapify.ts normalises. The real-response contract is exercised by hand — see docs/manual-checks.md (analyse_neighbourhood, QUOTA_EXCEEDED). The nested `dense` collection carries its own note.",
   "type": "FeatureCollection",
   "features": [
     {

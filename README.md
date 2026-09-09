@@ -100,4 +100,6 @@ pnpm knip         # unused files, exports, dependencies
 pnpm lint        # biome check . — lint + format
 ```
 
-Upstreams are mocked at the HTTP client core boundary; the suite runs offline and deterministically. See root `AGENTS.md` for the full testing philosophy and Definition of Done.
+Upstreams are mocked at the HTTP client core boundary, so the suite is deterministic. See root `AGENTS.md` for the full testing philosophy and Definition of Done.
+
+Some checks can only be run by hand — real network behaviour, the Nominatim rate limiter, the MCP handshake, the inspector UI, a clean-clone startup. Those live in [`docs/manual-checks.md`](docs/manual-checks.md) as a runnable checklist with the expected output for each step.
