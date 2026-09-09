@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearFaults } from "../http/faults.js";
 import { tools } from "../registry.js";
 import { createServer } from "../server.js";
 import { type HttpTransportHandle, startHttpTransport } from "./http.js";
@@ -206,5 +207,92 @@ describe("HTTP and in-memory transports produce identical CallToolResults", () =
     const inMemoryResult = await inMemoryClient.callTool(args);
     expect(httpResult.isError).toBe(true);
     expect(httpResult).toEqual(inMemoryResult);
+  });
+});
+
+describe("dev fault-injection route", () => {
+  let handle: HttpTransportHandle | undefined;
+
+  const start = async () => {
+    handle = await startHttpTransport({
+      port: 0,
+      host: "127.0.0.1",
+      allowedOrigins: [ALLOWED_ORIGIN],
+    });
+    return `http://127.0.0.1:${handle.port}`;
+  };
+
+  afterEach(async () => {
+    await handle?.close();
+    handle = undefined;
+    delete process.env.BEARINGS_FAULT_INJECTION;
+    clearFaults();
+  });
+
+  it("does not exist when BEARINGS_FAULT_INJECTION is unset", async () => {
+    delete process.env.BEARINGS_FAULT_INJECTION;
+    const baseUrl = await start();
+
+    // 404, not 403: an unarmed flag leaves no surface at all rather than one that
+    // advertises itself by refusing.
+    expect((await fetch(`${baseUrl}/__dev/faults`)).status).toBe(404);
+    expect(
+      (
+        await fetch(`${baseUrl}/__dev/faults`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ faults: { geoapify: "timeout" } }),
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it("arms and reports faults when the flag is set", async () => {
+    process.env.BEARINGS_FAULT_INJECTION = "1";
+    const baseUrl = await start();
+
+    const posted = await fetch(`${baseUrl}/__dev/faults`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ faults: { geoapify: "quota_exceeded" } }),
+    });
+
+    expect(posted.status).toBe(200);
+    expect(await posted.json()).toEqual({ faults: { geoapify: "quota_exceeded" } });
+
+    const read = await fetch(`${baseUrl}/__dev/faults`);
+    expect(await read.json()).toEqual({ faults: { geoapify: "quota_exceeded" } });
+  });
+
+  it("rejects an invalid fault map instead of storing it", async () => {
+    process.env.BEARINGS_FAULT_INJECTION = "1";
+    const baseUrl = await start();
+
+    const response = await fetch(`${baseUrl}/__dev/faults`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ faults: { geoapify: "explode" } }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await (await fetch(`${baseUrl}/__dev/faults`)).json()).toEqual({ faults: {} });
+  });
+
+  it("clears every fault on an empty map", async () => {
+    process.env.BEARINGS_FAULT_INJECTION = "1";
+    const baseUrl = await start();
+
+    await fetch(`${baseUrl}/__dev/faults`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ faults: { nager: "timeout" } }),
+    });
+    await fetch(`${baseUrl}/__dev/faults`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ faults: {} }),
+    });
+
+    expect(await (await fetch(`${baseUrl}/__dev/faults`)).json()).toEqual({ faults: {} });
   });
 });

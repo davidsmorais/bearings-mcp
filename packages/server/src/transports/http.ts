@@ -5,7 +5,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { allowedOrigins as defaultAllowedOrigins, httpHost, httpPort } from "../env.js";
+import {
+  allowedOrigins as defaultAllowedOrigins,
+  faultInjectionEnabled,
+  httpHost,
+  httpPort,
+} from "../env.js";
+import { getFaults, parseFaultMap, setFaults } from "../http/faults.js";
 import { createServer } from "../server.js";
 
 export interface HttpTransportOptions {
@@ -49,6 +55,25 @@ function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
       exposedHeaders: ["mcp-session-id"],
     }),
   );
+
+  // Registered only when the flag is armed, so an unset BEARINGS_FAULT_INJECTION leaves
+  // no route to reach at all — a 404, not a 403. Wiring only, like everything else in
+  // this file (root Invariant 5): the fault state itself lives in src/http/.
+  if (faultInjectionEnabled()) {
+    app.get("/__dev/faults", (_req: Request, res: Response) => {
+      res.json({ faults: getFaults() });
+    });
+
+    app.post("/__dev/faults", express.json(), (req: Request, res: Response) => {
+      const parsed = parseFaultMap((req.body as { faults?: unknown } | undefined)?.faults);
+      if (parsed === undefined) {
+        jsonRpcError(res, 400, "Invalid fault map");
+        return;
+      }
+      setFaults(parsed);
+      res.json({ faults: getFaults() });
+    });
+  }
 
   // Scoped to POST only — express.json() in front of the GET SSE route would consume
   // a body that request never has and hang the stream waiting on one.

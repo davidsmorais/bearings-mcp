@@ -183,6 +183,8 @@ A change is not finished until all three pass, in this order:
 
 An agent reporting a task complete without having run all three is reporting incorrectly. If any step wasn't run, say so explicitly rather than presenting the work as done.
 
+If `pnpm lint` (Biome) reports something confusing — a `biome.json` deprecation warning, a `--write` that changed nothing, or output and exit code that disagree — **read the `biome-specialist` skill** (`.agents/skills/biome-specialist/SKILL.md`, invokable as `/biome-specialist`) before hand-editing config or assuming the tool is broken. It documents this repo's known footgun where a shell hook can silently rewrite a `biome …` command onto something else entirely.
+
 ---
 
 ## 🚫 Forbidden Practices (repo-wide)
@@ -497,7 +499,8 @@ Work an agent produces is not submission-ready until David has checked the follo
 - **Geoapify credit accounting matches the real dashboard.** Compare the app's own credit counter against Geoapify's account usage page after a test session, not just against the documented cost-per-request formula.
 - **API key handling.** Confirm the key never appears in a committed file, a client-side bundle, a log line, or an error message returned to the inspector.
 - **Every number in the README is real.** Token counts, credit costs, and latency figures must come from an actual measured run, not an estimate an agent wrote to fill the section.
-- **License check on any newly added dependency.** Especially anything pulled in for the inspector — confirm it's MIT/Apache/ISC-equivalent before it ships in a submission with David's name on it.
+- **License check on any newly added dependency.** Especially anything pulled in for the inspector — confirm it's MIT/Apache/ISC-equivalent before it ships in a submission with David's name on it. `react-json-view-lite` was added in DMS-504 and has not been licence-checked by hand.
+- **Click through the inspector by hand, end to end.** DMS-504 verified live against a running HTTP server: page load and connection, `tools/list` populating the selector with server-side descriptions, nested form generation for `get_destination_brief`, client-side validation messages, and one successful `echo` call rendering its cost meter and history row. The browser-automation harness then stopped delivering synthetic click events (even a plain toggle button), so **the click-driven parts beyond that — the raw/rendered toggle, pinning two calls, the compare panel's token delta, and driving the fault panel from the UI — were verified by component tests and a scripted MCP client, not by a human clicking.** Those specific interactions still want a real pair of hands.
 - **Read every AI-generated diff before commit.** The take-home brief explicitly requires the author to understand and validate generated code. This is not delegable to another agent — it's the one review step that has to be David, every time.
 - **Final pass on `DECISIONS.md` and the README's decisions section for consistency.** They should tell the same story; agents draft both independently and drift is easy to miss.
 - **Confirm the four AGENTS.md files haven't drifted from each other.** If root and a package file disagree on something that's stated in both, root wins and the package file needs fixing.
@@ -509,3 +512,4 @@ Work an agent produces is not submission-ready until David has checked the follo
 - 2026-09-05: The 8 agents in `.agents/agents/` were documented but never compiled to `.claude/agents/` — Claude Code could not actually spawn them via the `Agent` tool. Fixed by writing compiled `.claude/agents/<name>.md` frontmatter files for all 8. If a soul in `.agents/agents/` changes, regenerate its `.claude/agents/` counterpart in the same change.
 - 2026-09-05: The 5 repo-specific skills (`new-mcp-tool`, `new-upstream-client`, `new-shared-schema`, `new-web-component`, `new-web-hook`) existed in `.agents/skills/` but their `.claude/skills/` counterparts were empty stub directories. Fixed by copying `SKILL.md` into each. Keep both directories in sync when either changes.
 - 2026-09-05: `CLAUDE.md` and `hocus.md` were missing at repo root despite being part of the original harness scaffolding scope; both created.
+- 2026-09-09: Ran `biome migrate --write` — the deprecated `linter.rules.recommended: true` (schema 2.5.12) is now `linter.rules.preset: "recommended"`. Also re-pinned `@biomejs/biome` from `^2.0.0` to exact `2.5.12` in root `package.json` (Biome's docs recommend exact pins so a minor bump can't silently change lint results with no repo diff); lockfile specifier updated to match. `biome check .` is now clean — no more `deserialize DEPRECATED` info.

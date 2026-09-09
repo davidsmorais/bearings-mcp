@@ -1,4 +1,11 @@
-import { isToolError, type ToolError, toToolError, zodErrorToToolError } from "@bearings/shared";
+import {
+  isToolError,
+  TOKEN_META_KEY,
+  type TokenMeta,
+  type ToolError,
+  toToolError,
+  zodErrorToToolError,
+} from "@bearings/shared";
 import { estimateTokens, TOKENIZER_ENCODING } from "@bearings/shared/tokens";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -17,9 +24,6 @@ function toolErrorToStructuredContent(error: ToolError): Record<string, unknown>
   return error as unknown as Record<string, unknown>;
 }
 
-/** `_meta` key an approximate per-response token count rides on (Phase 2, DMS-501). */
-const TOKEN_META_KEY = "bearings/tokens";
-
 /**
  * `structuredContent` serialises to the identical JSON as `content[0].text` whenever a
  * handler returns a plain object, since the MCP spec recommends sending both for
@@ -28,8 +32,14 @@ const TOKEN_META_KEY = "bearings/tokens";
  * computed from the already-serialised text so it applies uniformly to every tool and
  * to errors, without touching a single domain schema.
  */
-function tokenMeta(text: string, hasStructuredContent: boolean): Record<string, unknown> {
+function tokenMeta(
+  text: string,
+  hasStructuredContent: boolean,
+): Record<typeof TOKEN_META_KEY, TokenMeta> {
   const contentTokens = estimateTokens(text);
+  // Annotated as TokenMeta (the shared contract the inspector parses with) rather than
+  // Record<string, unknown>, so a field renamed here fails to compile instead of
+  // silently dropping the inspector's token display to "unavailable" at runtime.
   return {
     [TOKEN_META_KEY]: {
       approximate: true,

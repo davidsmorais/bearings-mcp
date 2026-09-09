@@ -166,6 +166,14 @@ export const buildDefaultValues = (fields: FormFieldDescriptor[]): Record<string
       return field.default;
     }
 
+    // An optional field with no schema default starts absent, not blank. Seeding it with
+    // "" or the first enum member makes the form dispatch a value the user never chose —
+    // and for a bounded optional like CountryCode ("" fails the pattern) it makes the
+    // form permanently invalid until the user fills a field the tool never required.
+    if (!field.required) {
+      return undefined;
+    }
+
     switch (field.kind) {
       case "string":
         return "";

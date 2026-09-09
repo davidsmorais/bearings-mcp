@@ -234,3 +234,89 @@ scaling `samplePois` with `limitPerCategory` instead of a flat 10 (couples two
 independent knobs and makes the response shape a function of a cost lever, harder to
 document than it's worth); leaving `samplePois` at 5 (keeps the brief-vs-full token
 delta more flattering, which is not a reason to pick a sample size).
+
+---
+
+## 2026-09-09 — Comparison is history-based, not a compare button
+
+**Decision:** The inspector records every call in a session history with its token count,
+Geoapify credits and latency, and comparison happens by pinning two of those entries side
+by side. There is no "compare brief vs full" button that fires both calls.
+
+**Why:** The acceptance criterion is that brief and full can be compared with token
+counts. A button that dispatches both would satisfy it literally while doubling Geoapify
+spend on every press — in a tool whose stated purpose is making cost visible, that is the
+wrong instinct to build in. Pinning reuses calls already paid for. It also generalises for
+free: the same mechanism compares two radii, two queries, or a successful call against the
+failure that preceded it, none of which a brief-vs-full button would have covered.
+
+Failures are recorded alongside successes, because a failed call still burned latency and
+may have burned credits before the failing upstream, and it is exactly the call a
+developer goes looking for.
+
+**Alternatives considered:** an explicit compare action firing both calls (literal, and
+costs a credit every time someone is curious); rendering only the latest response and
+leaving comparison to the developer's memory (which is what the token numbers exist to
+replace).
+
+**Consequence worth knowing:** the running credit total is accumulated in the history
+reducer rather than summed over the visible entries, because the entry list is capped at
+50. A total derived from surviving entries would start *decreasing* after the cap — the
+one behaviour a spend counter must never have.
+
+---
+
+## 2026-09-09 — Fault injection lives in the HTTP client core, behind an env flag
+
+**Decision:** Simulated upstream failures are raised inside `packages/server/src/http/client.ts`,
+before the cache read, and mapped through the same `mapHttpError` a real failure takes.
+State lives in `src/http/faults.ts`; the `/__dev/faults` control route is registered only
+when `BEARINGS_FAULT_INJECTION` is set.
+
+**Why:** The partial-result path is one of the more interesting behaviours in this repo and
+was previously undemonstrable without unplugging the network. Injecting at the core means
+everything downstream — the per-domain composition, the `sources` block, credit accounting
+— cannot distinguish an injected failure from a genuine one, so what gets demonstrated is
+the real path rather than a mock of it. Root Invariant 3 already says nothing bypasses the
+core, which makes the core the only place a fault can be raised without lying.
+
+The check runs **before** the cache lookup deliberately: a warm cache entry would otherwise
+answer the request and the armed fault would silently never fire, which is the most
+confusing possible behaviour for a debugging control.
+
+Registering the route conditionally rather than having it refuse when disarmed means an
+unset flag leaves no surface at all — a 404, not a 403 that advertises the feature exists.
+
+**Alternatives considered:** carrying a fault directive in the MCP `tools/call` `_meta`
+(threads a debug-only parameter through every handler signature down to the upstream
+clients — production code paying for a demo feature); setting it as a header at transport
+construction (global, and changing it needs a reconnect); a mocked `fetch` swapped into
+`getHttpCore()` (bypasses the retry, timeout and error-mapping layers that make the
+simulated failure resemble a real one at all).
+
+**Known limitation, accepted:** faults are per upstream **host**, which is the granularity
+the core knows. `analyse_neighbourhood` queries Geoapify for all six domains, so faulting
+Geoapify takes all six down together rather than one; the mixed ok/unavailable case is
+`get_destination_brief`, which composes two genuinely different upstreams. Per-domain
+granularity would mean threading a domain concept into the HTTP core, which is a real
+architectural cost for a demo affordance. The fault registry is also module-level and
+therefore shared across sessions — two inspector tabs share one setting, which is
+acceptable for a loopback development tool.
+
+---
+
+## 2026-09-09 — `react-json-view-lite` is the inspector's one component dependency
+
+**Decision:** Add `react-json-view-lite` for the raw JSON pane. Density bars stay plain
+`<div>`s; no charting library, no component library, no animation library.
+
+**Why:** `packages/web/AGENTS.md` forbids dependencies that exist to make the inspector
+look like a product. A collapsible JSON tree is not that — the `analyse_neighbourhood`
+`full` response is genuinely too deep to read unfolded, and hand-rolling collapse state for
+arbitrary nesting is more code than the dependency. It ships no design system of its own,
+so it cannot drag the tool's appearance toward a templated dashboard.
+
+**Alternatives considered:** a `<pre>` with `JSON.stringify` (zero dependencies, and fine
+for `echo` or `resolve_destination`, but unreadable for the response that most needs
+reading); `@rjsf/core` for the forms, rejected earlier and still rejected — reskinning it
+costs more than the thin renderer in `zodToForm.ts`.

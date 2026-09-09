@@ -12,6 +12,10 @@ const VALIDATION_DEBOUNCE_MS = 250;
 
 export interface SchemaFormProps {
   schema: (typeof toolInputSchemas)[keyof typeof toolInputSchemas];
+  /** Dispatches the parsed input. The form owns validation; the caller owns the call. */
+  onSubmit: (input: Record<string, unknown>) => void;
+  /** True while a call is in flight, so the button cannot fire a second one. */
+  pending: boolean;
 }
 
 const inputClassName =
@@ -153,7 +157,7 @@ const renderField = (
   );
 };
 
-export const SchemaForm = ({ schema }: SchemaFormProps) => {
+export const SchemaForm = ({ schema, onSubmit, pending }: SchemaFormProps) => {
   const fields = useMemo(() => zodSchemaToFormFields(schema), [schema]);
   const [values, setValues] = useState<Record<string, unknown>>(() => buildDefaultValues(fields));
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -186,11 +190,22 @@ export const SchemaForm = ({ schema }: SchemaFormProps) => {
     setValues((current) => setValueAtPath(current, path, value));
   };
 
+  const invalid = validationMessage !== null;
+
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
+        // Parse rather than submit `values` directly: this applies the schema's defaults
+        // and coercions, so what is dispatched is exactly what the server would accept.
+        // The debounced message may lag a fast submit, hence re-checking here.
+        const result = schema.safeParse(values);
+        if (!result.success) {
+          setValidationMessage(zodErrorToToolError(result.error, values).message);
+          return;
+        }
+        onSubmit(result.data as Record<string, unknown>);
       }}
     >
       {fields.map((field) => renderField(field, values, handleChange))}
@@ -206,11 +221,15 @@ export const SchemaForm = ({ schema }: SchemaFormProps) => {
 
       <button
         type="submit"
-        disabled
-        className="cursor-not-allowed rounded bg-neutral-300 px-4 py-2 text-sm font-medium text-neutral-600"
-        title="HTTP transport is not wired yet"
+        disabled={invalid || pending}
+        className={`rounded px-4 py-2 font-medium text-sm ${
+          invalid || pending
+            ? "cursor-not-allowed bg-neutral-200 text-neutral-500"
+            : "bg-neutral-800 text-white hover:bg-neutral-700"
+        }`}
+        title={invalid ? "Fix the validation error first" : undefined}
       >
-        Submit — awaiting HTTP transport
+        {pending ? "calling…" : "call tool"}
       </button>
     </form>
   );

@@ -1,7 +1,9 @@
 import { createToolError, type ToolError } from "@bearings/shared";
+import { faultInjectionEnabled } from "../env.js";
 import { createCache } from "./cache.js";
 import { buildCacheKey, type CacheParams } from "./cacheKey.js";
 import { HOST_CONFIG } from "./config.js";
+import { type FaultKind, faultFor } from "./faults.js";
 import { mapHttpError } from "./mapError.js";
 import { type Clock, createRateLimiter, type RateLimiter } from "./rateLimiter.js";
 import { computeBackoffDelay, isRetryable } from "./retry.js";
@@ -77,6 +79,46 @@ const mapCallerAbort = (hostId: HostId, attempts: number): ToolError =>
     hostId,
     attempts,
   });
+
+/**
+ * Turns an injected fault into the *same* `ToolError` the real failure path produces, by
+ * routing it through `mapHttpError` rather than hand-constructing an error. That is the
+ * whole point of injecting here in the core: everything downstream — the per-domain
+ * partial composition, the sources block, the credit accounting — cannot tell an injected
+ * Geoapify failure from a genuine one, so what the demo shows is the real path, not a
+ * simulation of it.
+ */
+const mapInjectedFault = (hostId: HostId, kind: FaultKind): ToolError => {
+  const config = HOST_CONFIG[hostId];
+
+  switch (kind) {
+    case "timeout":
+      return mapHttpError({
+        hostId,
+        config,
+        // A real timeout exhausts the retry budget before surfacing; reporting one
+        // attempt would understate what a timeout actually costs in wall-clock time.
+        attempts: config.retry.maxAttempts,
+        timedOut: true,
+        timeoutMs: config.timeoutMs,
+      });
+    case "rate_limited":
+      return mapHttpError({ hostId, config, attempts: 1, status: 429 });
+    case "quota_exceeded":
+      // Geoapify signals quota exhaustion as a 429 with a quota message in the body;
+      // the host config's classifier is what separates it from a plain rate limit, and
+      // it must be the thing that runs here too.
+      return mapHttpError({
+        hostId,
+        config,
+        attempts: 1,
+        status: 429,
+        body: { message: "Daily quota limit exceeded" },
+      });
+    case "upstream_error":
+      return mapHttpError({ hostId, config, attempts: 1, status: 502 });
+  }
+};
 
 export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
   const fetchFn = deps.fetch ?? fetch;
@@ -228,6 +270,16 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
     params: CacheParams = {},
     opts: RequestOptions = {},
   ): Promise<HttpResult<T>> => {
+    // Checked before the cache read on purpose: a warm cache entry would otherwise
+    // satisfy the request and the armed fault would silently never fire, which is the
+    // most confusing possible behaviour for a debugging control.
+    if (faultInjectionEnabled()) {
+      const fault = faultFor(hostId);
+      if (fault !== undefined) {
+        return mapInjectedFault(hostId, fault);
+      }
+    }
+
     const cacheKey = buildCacheKey(hostId, path, params);
     const cached = cache.get(cacheKey);
     if (cached !== undefined) {

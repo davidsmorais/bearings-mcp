@@ -138,9 +138,20 @@ describe("buildDefaultValues", () => {
     expect(coordinates.lon).toBeUndefined();
   });
 
-  it("defaults an unset string field to an empty string", () => {
+  it("defaults an unset required string field to an empty string", () => {
     const fields = zodSchemaToFormFields(EchoInputSchema);
     expect(buildDefaultValues(fields)).toEqual({ message: "" });
+  });
+
+  it("leaves an optional field absent rather than seeding it with a failing value", () => {
+    // CountryCode is optional and bounded; seeding "" would make resolve_destination's
+    // form permanently invalid until the user filled a field the tool never required.
+    const fields = zodSchemaToFormFields(ResolveDestinationInputSchema);
+    const values = buildDefaultValues(fields);
+    expect(values.countryCode).toBeUndefined();
+    expect(ResolveDestinationInputSchema.safeParse({ ...values, query: "Lisbon" }).success).toBe(
+      true,
+    );
   });
 });
 

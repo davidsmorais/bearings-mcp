@@ -63,13 +63,41 @@ For wiring Claude Desktop specifically, and a stdin-piped smoke test that doesn'
 
 The Zod schema is the single source of truth for a tool's input — the server validates against it and the inspector generates its input forms from that exact same object, so the two can never quietly drift apart; the inspector is there to prove that property live, not to ship as a product.
 
+Concretely: `packages/shared/src/schemas/getDestinationBrief.ts` exports one `z.object`. `packages/server` calls `safeParse` on it before a handler runs, and advertises it as JSON Schema in `tools/list`. `packages/web` runs `zodToJsonSchema` over the same import to lay out the form — the nested `location.coordinates` fieldset, the date inputs, the `detail` dropdown and its default all come from that object, not from a file describing the form. Adding a tool to the registry surfaces its form with no change in `packages/web`; a rejected input shows the developer the exact `ToolError` message an agent would have received, produced by the same `zodErrorToToolError` the server uses.
+
+The inspector reads its token counts off the response envelope (`_meta["bearings/tokens"]`) rather than tokenising in the browser, so the number it shows is the number the server computed. It is labelled approximate and names its tokenizer, because `o200k_base` is a GPT encoding and not Claude's — good for comparing two shapes of the same payload, not for predicting a bill.
+
+### What `detail: brief` actually saves
+
+Measured with `pnpm --filter @bearings/server measure:tokens`; the inspector shows the same figures per call, and pinning two calls in its history puts them side by side with the delta.
+
+| Tool | `brief` | `full` |
+|---|---|---|
+| `resolve_destination` | 5 candidates, no coordinates or evidence fields | adds coordinates and per-candidate detail |
+| `get_destination_brief` | drops `weatherCode`, coordinates, holiday `countryCode` | keeps them |
+| `analyse_neighbourhood` | ratings and ring counts only | adds up to 10 sample POIs per domain and location coordinates |
+
+A regression guard in `server.integration.test.ts` asserts `brief` costs strictly fewer tokens than `full` for every real tool, so the distinction cannot quietly stop paying for itself.
+
+### Simulating an upstream failure
+
+The partial-result path — one upstream down, the response still carrying what the others returned — is one of the more interesting things this server does, and waiting for Geoapify to actually fail is a poor way to demonstrate it. Start the server with `BEARINGS_FAULT_INJECTION=1` and the inspector grows a fault panel:
+
+```bash
+BEARINGS_FAULT_INJECTION=1 node packages/server/dist/cli.js --transport http
+```
+
+Faults are raised inside the HTTP client core, before the cache is consulted, and are mapped through the same `mapHttpError` a real failure takes — so nothing downstream can tell an injected failure from a genuine one. Faulting Open-Meteo and calling `get_destination_brief` returns `sources.openMeteo: "unavailable"` carrying its error, `sources.nager: "ok"`, and the holidays intact.
+
+Granularity is per upstream **host**, not per domain: `analyse_neighbourhood` queries Geoapify for all six domains, so faulting Geoapify takes all six down together. Without the flag the `/__dev/faults` route is never registered — a 404, not a 403.
+
 ## Testing
 
 ```bash
 pnpm test        # all packages
 pnpm typecheck    # all packages
 pnpm knip         # unused files, exports, dependencies
-./node_modules/.bin/biome check .   # lint + format; root `pnpm lint` can be intercepted by a local wrapper, run biome directly to be certain
+pnpm lint        # biome check . — lint + format
 ```
 
 Upstreams are mocked at the HTTP client core boundary; the suite runs offline and deterministically. See root `AGENTS.md` for the full testing philosophy and Definition of Done.

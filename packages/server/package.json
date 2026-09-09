@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "start": "node dist/cli.js",
-    "start:http": "node dist/cli.js --transport http"
+    "start:http": "node dist/cli.js --transport http",
     "measure:tokens": "tsx scripts/measureTokenBudget.ts"
   },
   "dependencies": {
