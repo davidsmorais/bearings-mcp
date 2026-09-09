@@ -16,9 +16,13 @@ import {
 export const GEOAPIFY_CATEGORY_STRINGS: Record<PoiCategory, readonly string[]> = {
   dining: ["catering.restaurant"],
   cafes: ["catering.cafe"],
-  // `entertainment.nightclub` is a real Geoapify leaf and the clearest nightlife
-  // signal after bars and pubs; included so the reverse classifier recognises it.
-  nightlife: ["catering.bar", "catering.pub", "entertainment.nightclub"],
+  // Geoapify has no `nightlife` category and no `entertainment.nightclub` leaf —
+  // nightclubs sit under `adult.nightclub`. `entertainment` is the closest parent
+  // Geoapify actually documents (it also covers cinemas, theatres and venues), so
+  // bars + pubs stay the primary signal and `entertainment` is the broad catch.
+  // Counts in `analyseNeighbourhood` are unfiltered, so this deliberately widens
+  // `nightlife` to "going-out venues"; the density thresholds want live re-calibration.
+  nightlife: ["catering.bar", "catering.pub", "entertainment"],
   groceries: ["commercial.supermarket"],
   transit: ["public_transport"],
   parks: ["leisure.park"],

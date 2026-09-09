@@ -86,7 +86,7 @@ describe("searchPlaces", () => {
       { core },
     );
 
-    expect(capturedCategories).toBe("catering.bar,catering.pub,entertainment.nightclub");
+    expect(capturedCategories).toBe("catering.bar,catering.pub,entertainment");
   });
 
   it("rounds a sub-metre input coordinate to 4 dp in the filter and bias strings", async () => {

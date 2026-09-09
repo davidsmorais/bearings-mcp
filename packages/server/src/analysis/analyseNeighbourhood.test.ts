@@ -333,7 +333,7 @@ describe("analyseNeighbourhood — domain scoping", () => {
     await runComposition(buildInput({ categories: ["nightlife"] }), fetch);
 
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(captured[0]).toBe("catering.bar,catering.pub,entertainment.nightclub");
+    expect(captured[0]).toBe("catering.bar,catering.pub,entertainment");
   });
 });
 

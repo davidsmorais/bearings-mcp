@@ -53,7 +53,7 @@
     }
   ],
   "dense": {
-    "_note": "Hand-shaped, not captured live (same precedent as the root FeatureCollection above) — 40 nightlife-domain features (catering.bar/catering.pub/entertainment.nightclub) so the analyse_neighbourhood ceil(places/20) 2-credit path and the 10-nearest-sample cap both have a fixture that actually exceeds their thresholds.",
+    "_note": "Hand-shaped, not captured live (same precedent as the root FeatureCollection above) — 40 nightlife-domain features (catering.bar/catering.pub/entertainment) so the analyse_neighbourhood ceil(places/20) 2-credit path and the 10-nearest-sample cap both have a fixture that actually exceeds their thresholds.",
     "type": "FeatureCollection",
     "features": [
       {
@@ -102,7 +102,7 @@
           "lon": -9.144499999999999,
           "formatted": "Dense Venue 03, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-003",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 45
         },
         "geometry": {
@@ -156,7 +156,7 @@
           "lon": -9.1439,
           "formatted": "Dense Venue 06, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-006",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 90
         },
         "geometry": {
@@ -210,7 +210,7 @@
           "lon": -9.1433,
           "formatted": "Dense Venue 09, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-009",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 135
         },
         "geometry": {
@@ -264,7 +264,7 @@
           "lon": -9.1427,
           "formatted": "Dense Venue 12, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-012",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 180
         },
         "geometry": {
@@ -318,7 +318,7 @@
           "lon": -9.1421,
           "formatted": "Dense Venue 15, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-015",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 225
         },
         "geometry": {
@@ -372,7 +372,7 @@
           "lon": -9.1415,
           "formatted": "Dense Venue 18, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-018",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 270
         },
         "geometry": {
@@ -426,7 +426,7 @@
           "lon": -9.1409,
           "formatted": "Dense Venue 21, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-021",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 315
         },
         "geometry": {
@@ -480,7 +480,7 @@
           "lon": -9.1403,
           "formatted": "Dense Venue 24, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-024",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 360
         },
         "geometry": {
@@ -534,7 +534,7 @@
           "lon": -9.1397,
           "formatted": "Dense Venue 27, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-027",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 405
         },
         "geometry": {
@@ -588,7 +588,7 @@
           "lon": -9.1391,
           "formatted": "Dense Venue 30, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-030",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 450
         },
         "geometry": {
@@ -642,7 +642,7 @@
           "lon": -9.1385,
           "formatted": "Dense Venue 33, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-033",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 495
         },
         "geometry": {
@@ -696,7 +696,7 @@
           "lon": -9.1379,
           "formatted": "Dense Venue 36, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-036",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 540
         },
         "geometry": {
@@ -750,7 +750,7 @@
           "lon": -9.1373,
           "formatted": "Dense Venue 39, Bairro Alto, Lisbon, Portugal",
           "place_id": "dense-nightlife-039",
-          "categories": ["entertainment.nightclub"],
+          "categories": ["entertainment"],
           "distance": 585
         },
         "geometry": {

@@ -51,8 +51,17 @@ describe("domainForGeoapifyCategories / poiCategoryForGeoapifyCategories", () =>
     expect(poiCategoryForGeoapifyCategories(["catering.restaurant"])).toBe("dining");
   });
 
-  it("classifies a nightclub feature as nightlife", () => {
-    expect(domainForGeoapifyCategories(["entertainment.nightclub"])).toBe("nightlife");
+  it("classifies an entertainment feature as nightlife", () => {
+    expect(domainForGeoapifyCategories(["entertainment"])).toBe("nightlife");
+    expect(domainForGeoapifyCategories(["entertainment.cinema"])).toBe("nightlife");
+  });
+
+  it("keeps entertainment.culture / entertainment.museum in culture, not nightlife", () => {
+    // `entertainment` (nightlife) is a depth-1 prefix; the culture leaves are deeper
+    // and must still win the longest-prefix match.
+    expect(domainForGeoapifyCategories(["entertainment.culture"])).toBe("culture");
+    expect(domainForGeoapifyCategories(["entertainment.museum"])).toBe("culture");
+    expect(poiCategoryForGeoapifyCategories(["entertainment.culture.theatre"])).toBe("culture");
   });
 
   it("classifies a park feature as greenSpace", () => {
