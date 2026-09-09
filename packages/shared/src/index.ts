@@ -20,6 +20,8 @@ export type { GetDestinationBriefInput } from "./schemas/getDestinationBrief.js"
 export { GetDestinationBriefInputSchema } from "./schemas/getDestinationBrief.js";
 export type { ResolveDestinationInput } from "./schemas/resolveDestination.js";
 export { ResolveDestinationInputSchema } from "./schemas/resolveDestination.js";
+export type { TokenMeta } from "./tokens/tokenMeta.js";
+export { TOKEN_META_KEY, TokenMetaSchema } from "./tokens/tokenMeta.js";
 export { toToolError, zodErrorToToolError } from "./toToolError.js";
 export type { Coordinates } from "./types/coordinates.js";
 export { CoordinatesSchema } from "./types/coordinates.js";
