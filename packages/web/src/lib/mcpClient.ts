@@ -3,7 +3,11 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 const DEFAULT_MCP_URL = "http://127.0.0.1:3000/mcp";
 
-const endpoint = (): URL => new URL(import.meta.env.VITE_BEARINGS_MCP_URL ?? DEFAULT_MCP_URL);
+/** The configured MCP endpoint. Exported so sibling dev routes resolve against it. */
+export const getMcpUrl = (): URL =>
+  new URL(import.meta.env.VITE_BEARINGS_MCP_URL ?? DEFAULT_MCP_URL);
+
+const endpoint = getMcpUrl;
 
 // The SDK Client is a stateful long-lived object and React StrictMode double-mounts
 // in dev. Memoising the connection *promise* (not the client) means the second call
