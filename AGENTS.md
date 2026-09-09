@@ -147,7 +147,7 @@ Read this before touching any `upstream/` client. Each of these has bitten a pri
 | **Open-Meteo** | Returns hourly arrays by default | Passing raw hourly data through as a "daily summary" is a normalisation bug, not a formatting choice |
 | **Nager.Date** | Holiday data is per calendar year | A stay spanning 31 December requires two fetches, not one |
 | **Nager.Date** | Not every country code is supported | Return `NOT_FOUND`, never an empty array pretending to be a complete answer |
-| **Geoapify** | Billing is 1 credit per 20 places returned | `limit` is a cost lever, not just a page size. Wire it deliberately, don't default it high |
+| **Geoapify** | Billing is `ceil(places / 20)` credits per request, and the ceiling is now gated by `detail` (DMS-501): `limitPerCategory` maxes at 20 for `brief`, 40 for `full` — default unchanged at 20 | `limit` is a cost lever, not just a page size. Wire it deliberately, don't default it high, and don't let `brief` opt into the second credit bucket |
 | **Geoapify** | Daily credit cap resets on their schedule, not a rolling window | Surface as `QUOTA_EXCEEDED`, distinct from a generic rate limit |
 | **Geoapify** | Category taxonomy is documented but deep (400+) | Map only the categories the analysis layer actually uses; do not import the full tree speculatively |
 

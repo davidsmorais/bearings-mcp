@@ -119,3 +119,98 @@ outright — it breaks under `isolatedModules`, which this repo sets).
 - Raw `fetch` in the hooks instead of the MCP SDK `Client` (re-implements JSON-RPC framing, session-id handling, and SSE parsing that the SDK already does correctly, and drifts the moment the SDK's session handling changes).
 
 **Status:** React Query layer, `QueryClient`, MCP client singleton, and `useToolList` / `useToolCall` hooks delivered under `_spells/004`. End-to-end verification against a running server is deferred to Linear DMS-503 (Streamable HTTP transport), which does not yet exist — the hooks are pinned by mocked-client unit tests in the meantime.
+
+## 2026-09-09 — Per-handler response shaping, registry-level token measurement
+
+**Decision:** `detail: "brief" | "full"` projection logic stays in each tool's own
+handler — a typed mapping between two members of a discriminated union
+(`DestinationBriefFull → DestinationBriefBrief`, `NeighbourhoodProfileFull →
+NeighbourhoodProfileBrief`) that the handler `safeParse`s its own output against
+before returning. What moves to a single shared seam is *measurement*: `server.ts`
+computes one approximate token count per response, from the already-serialised text,
+and attaches it to `_meta["bearings/tokens"]` for every tool and every error — the one
+thing that genuinely is uniform across tools.
+
+**Why:** DMS-501 opened this as a question — should shaping be centralised at the
+registry, or stay per handler — and the answer is that a registry-level shaper would
+have to operate on `unknown` against a per-tool list of field paths, trading the
+compiler's guarantee that a brief response still satisfies its schema for a config file
+that is the same logic relocated and untyped. The fields each tool drops differ in
+*kind* (echoed request input for `resolve_destination`, upstream evidence for
+`get_destination_brief`, bulk samples for `analyse_neighbourhood`), so there is no
+shared rule to factor out. Token counting has no such per-tool variation — it only
+needs the text a handler already produced — so it is the one part of this that
+belongs at the seam both transports share.
+
+**Alternatives considered:** a generic shaper keyed by field paths (untyped, and the
+per-tool config is the code again, just relocated); `.omit()`-derived brief schemas in
+`packages/shared` (closer to typed, but the projections are not pure omissions — the
+forecast's nested `days[].weatherCode` and the domain profiles' nested `samplePois`
+need per-level handling that `.omit()` can't express).
+
+---
+
+## 2026-09-09 — `gpt-tokenizer` in `packages/shared`, behind a subpath export
+
+**Decision:** Add `gpt-tokenizer` as a `packages/shared` dependency and expose
+`estimateTokens` via a `./tokens` subpath export (`@bearings/shared/tokens`), not the
+main barrel. The encoding submodule is imported directly
+(`gpt-tokenizer/encoding/o200k_base`) rather than the package's default export.
+
+**Why:** `packages/shared/AGENTS.md` scopes that package to "Zod schemas, domain types,
+and the error taxonomy — nothing else," and a token estimator is none of those — this
+is a deliberate, recorded exception, not a quiet expansion of the package's job. It
+lives here anyway because `packages/server` needs the count and "a tested shared
+utility" is the honest description of what it is; the subpath keeps it out of the main
+barrel that `packages/web` imports, since the tokenizer carries megabytes of rank data
+with module-level initialisation that the inspector's bundle must never pay for — the
+inspector reads the count the server already computed instead of recomputing it.
+Pinning the encoding submodule import means a future `gpt-tokenizer` major that changes
+the package's default encoding can't silently move every recorded number.
+
+**Alternatives considered:** `packages/server/src/tokens/` (respects the shared-package
+scope exactly, but then "shared, tested utility" is a fiction the moment the inspector
+needs its own estimate); the shared barrel (bundle risk in `packages/web` for zero
+benefit); `chars/4` heuristic instead of a real tokenizer (no dependency at all, but the
+measured delta this ticket exists to produce would be an estimate of an estimate);
+`@anthropic-ai/tokenizer` (deprecated, Claude-2 era — no more accurate for current
+models while adding a heavier dependency).
+
+---
+
+## 2026-09-09 — `detail` gates the Geoapify credit ceiling; `full` returns ten samples
+
+**Decision:** Two schema widenings, both explicitly authorised by David against
+Invariant 9's default of never loosening a bound without being asked:
+
+1. `limitPerCategory`'s cap rises from 20 to 40, default unchanged at 20, with a new
+   refinement rejecting `detail: "brief"` above 20. `detail` gates the ceiling rather
+   than deriving the limit from it: under `ceil(places / 20)` billing every value from
+   1 to 20 costs exactly one credit, so lowering the `brief` default would save nothing
+   while only capping counts lower. Credits can only move upward — `full` may now opt
+   into a second credit bucket for a higher honest-count ceiling; the default stays 20
+   so nobody spends double by accident.
+2. `DomainProfileSchema.samplePois` rises from `.max(5)` to `.max(10)`, and the
+   server's `SAMPLE_POI_LIMIT` constant matches. This is a *response* bound, not an
+   input bound — it caps nothing that costs money or admits bad input. With
+   `limitPerCategory` reaching 40, five samples out of forty is a thinner window on the
+   data than five out of twenty was, and `full` is the mode whose purpose is depth.
+
+**Why these are recorded together but are not the same kind of change:** the first
+widens what a caller may spend; the second widens what a response may contain for free.
+Folding them into one ticket is fine because both exist for the same reason (`full`
+trading more cost/size for more depth), but a future reviewer should not read the
+credit-ceiling reasoning as justifying the sample-count change or vice versa — they are
+independent knobs, and the docs should not imply `limitPerCategory` and `samplePois`
+scale together (twenty places already yield ten samples; the second credit buys a
+higher honest-count ceiling, not a richer sample).
+
+**Alternatives considered:** lowering the `brief` default instead of raising the `full`
+ceiling (reads as wired, saves zero credits under per-20 billing, and degrades ratings
+by capping counts lower — the worst of the options considered); leaving the cap at 20
+and documenting that `detail` cannot move Geoapify spend (honest and zero-risk, but
+closes the ticket's acceptance criterion by explaining it away rather than meeting it);
+scaling `samplePois` with `limitPerCategory` instead of a flat 10 (couples two
+independent knobs and makes the response shape a function of a cost lever, harder to
+document than it's worth); leaving `samplePois` at 5 (keeps the brief-vs-full token
+delta more flattering, which is not a reason to pick a sample size).

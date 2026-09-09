@@ -14,6 +14,7 @@ packages/shared/src/
   types/                 domain types: Location, Coordinates, CountryCode, TimeWindow, PoiCategory
   errors.ts              ToolErrorCode enum + discriminated union + per-code constructors
   toToolError.ts         zodErrorToToolError + toToolError (unknown-throw mapper)
+  tokens/                estimateTokens — see the carve-out note below
   index.ts               barrel export — everything server and web import from
 ```
 
@@ -28,6 +29,7 @@ packages/shared/src/
 - **Every exported schema needs a domain type it validates into**, and the type name should read naturally in a tool response (`Location`, not `NominatimResult`). This package is the boundary where upstream vocabulary stops and domain vocabulary starts.
 - **No business logic.** Density thresholds, classification rules, and cache TTLs are server concerns and belong in `packages/server/src/analysis` or `http/`, even though they're informed by types defined here.
 - **No `.transform()` on input schema fields.** Transforms do not survive `zod-to-json-schema`, so the inspector form generator renders wrong defaults and types. Coerce or validate at the schema level instead.
+- **`gpt-tokenizer` (`src/tokens/estimateTokens.ts`) is a deliberate, recorded exception to "schemas, domain types and the error taxonomy — nothing else"** (`DECISIONS.md`, 2026-09-09). It exists here because `packages/server` needs a tested shared utility and there's nowhere else that description is honest. It is exposed **only** via the `./tokens` subpath export (`@bearings/shared/tokens`) in `package.json` `exports` — never add it to the main barrel (`index.ts`) or import it from one. The tokenizer carries megabytes of rank data with module-level initialisation; `packages/web` imports the barrel, and the inspector reads the token count `packages/server` already computed rather than recomputing its own, so this must never reach that bundle. If a future change needs the estimator from `packages/web`, that's a new decision to raise, not a "helpful" move into the barrel.
 
 ---
 

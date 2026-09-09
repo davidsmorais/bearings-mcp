@@ -98,6 +98,53 @@ classifier's "capped ratings only rise" guarantee holds regardless of the exact 
 
 ---
 
+## 📊 Response shaping token & credit budget (DMS-501)
+
+*Real numbers from `pnpm --filter @bearings/server run measure:tokens`, driving all
+three real tools through `createServer()` over `InMemoryTransport` with the committed
+fixtures. The token count is the same `_meta["bearings/tokens"]` block an agent
+actually receives — the script reads it off the wire rather than computing a second,
+private estimate. `analyse_neighbourhood`'s `full` figures reflect the DMS-501 sample
+count of **ten** per domain (raised from five — see "Neighbourhood density thresholds"
+above), so the delta below is a delta of *that* larger `full`, not the pre-DMS-501 one.*
+
+| Tool | Detail | Bytes | Approx. tokens | Worst-case tokens | Δ vs full | Geoapify credits |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `resolve_destination` | brief | 171 | 51 | 102 | −54% | — |
+| `resolve_destination` | full | 329 | 111 | 222 | — | — |
+| `get_destination_brief` | brief | 689 | 233 | 466 | −19% | — |
+| `get_destination_brief` | full | 841 | 286 | 572 | — | — |
+| `analyse_neighbourhood` | brief | 1403 | 468 | 936 | −68% | 6 |
+| `analyse_neighbourhood` | full | 4200 | 1451 | 2902 | — | 6 |
+
+- `analyse_neighbourhood`'s two rows use the default `limitPerCategory` (20) and all
+  seven categories on both sides, so credits are identical (6 = one per domain × six
+  domains) — the raised 40-place/2-credit ceiling from Phase 3 is a separate,
+  unit-tested cost lever, not part of this brief-vs-full comparison. (The script's two
+  `analyse_neighbourhood` calls use coordinates ~1 km apart so the second call isn't a
+  free Geoapify cache hit off the first — the fixture response is identical either way.)
+- `worstCaseTokens` is `contentTokens * 2`: every response is serialised twice on the
+  wire (`content[0].text` and `structuredContent`, identical JSON when the handler
+  returns a plain object) per the MCP spec's own compatibility recommendation — the
+  real spend if a host forwards both to the model. Not changed by this ticket; see
+  `DECISIONS.md` and the Risks section of `_spells/005`.
+- The Geoapify fixture (`test/fixtures/geoapify-places.json`) is hand-shaped, not
+  captured live (same caveat as "Neighbourhood density thresholds" above) — the
+  `analyse_neighbourhood` bytes/tokens are a real serialisation cost of a real (if
+  synthetic) payload shape, not a live measurement of Geoapify's actual response size.
+- `tokenizer: "o200k_base"` — a GPT BPE, not Claude's (no public Anthropic tokenizer
+  exists); an order-of-magnitude comparison between two shapes of the same JSON, not an
+  exact cost. See `packages/shared/src/tokens/estimateTokens.ts`.
+- Both composed tools clear the ~10% sanity threshold David asked to flag on
+  (`get_destination_brief` 19%, `analyse_neighbourhood` 68%) — nothing here needed
+  raising as a finding.
+- **Handed to DMS-505** (README, decisions doc, AI usage note) to lift this table
+  verbatim alongside the two-axis cost paragraph (context tokens move freely with
+  `detail`; Geoapify credits move only upward, by explicit opt-in) — see `_spells/005`'s
+  "Handover to DMS-505".
+
+---
+
 ## 🔌 Upstream Rate Limit & Operational Constraints
 
 - **Nominatim IP Hard Limits**:
@@ -127,6 +174,7 @@ classifier's "capped ratings only rise" guarantee holds regardless of the exact 
   - Tests: `analysis/*.test.ts` colocated per target; `analysis/analyseNeighbourhood.test.ts` + `tools/analyseNeighbourhood.test.ts` mocked at the HTTP-core boundary. The composition test's fake clock **advances on `sleep`** — a frozen `now()` starves the shared Geoapify rate limiter (capacity 5) once ≥ 6 acquires (2 domains × 3 retry attempts) drain it, since it only refills on elapsed time.
   - `packages/web` unchanged and unverifiable end-to-end: the inspector only generates input forms from `toolInputSchemas` (submit is still disabled pending the HTTP transport, DMS-503) and consumes no output schema. The `analyse_neighbourhood` input form still renders — the only input change is `limitPerCategory` `.max(100)`→`.max(20)`.
 - **`analyse_neighbourhood` credit accounting delivered (`DMS-500`, 2026-09-08)**: the last open DMS-500 acceptance criterion — the response now reports what it cost. `upstream/geoapify.ts` gains `GEOAPIFY_PLACES_PER_CREDIT = 20`, `creditsForResponse(cacheHit, returnedCount)` (`ceil(returnedCount / 20)`, 0 on cache hit), and `credits: number` on `SearchPlacesResult`. `NeighbourhoodProfileSchema` (both arms, `packages/shared`) gains a required top-level `credits: { consumed, byDomain }` (`NeighbourhoodCreditsSchema`) — **not** a nested `cost` envelope; DMS-501 folds tokens + credits into an envelope later if it wants one. `byDomain` is `z.record` over the domain enum ⇒ partial: a failed domain is **absent** (adds 0), a cache-served domain is an explicit **0**; `consumed` = sum of `byDomain`. The composition sums by explicit assignment in the existing domain loop; `toBriefDetail` carries the block through untouched (brief drops bulk, not evidence). An all-domains-fail `ToolError` carries no credit block (nothing was billed). With `limitPerCategory` capped at 20 every successful domain query costs 1 credit; raising the cap makes `limit` a direct cost lever again. Live calibration against the real Geoapify dashboard is still pending (root AGENTS.md manual-review list, blocked on the HTTP transport DMS-503). README cost section: DMS-505.
+- **Response shaping & token accounting delivered (`DMS-501`, 2026-09-09)**: closes the measurement half of `detail: brief | full` — the shaping itself shipped with DMS-494/497/500. `packages/shared/src/tokens/estimateTokens.ts` (`estimateTokens`, `TOKENIZER_ENCODING = "o200k_base"`) wraps `gpt-tokenizer/encoding/o200k_base`'s `countTokens`, exposed via the `@bearings/shared/tokens` subpath export (not the main barrel — the tokenizer's rank data must never reach `packages/web`'s bundle). `server.ts` attaches `_meta["bearings/tokens"] = { approximate: true, tokenizer, contentTokens, structuredContentDuplicated, worstCaseTokens }` on every response, success or error — `worstCaseTokens` is `contentTokens * 2` when `structuredContent` is also present (identical JSON to `content[0].text`), the honest cost if a host forwards both. `detail` now gates the Geoapify credit ceiling: `limitPerCategory` `.max(20)` → `.max(40)` (default unchanged at 20), with a new `.refine()` rejecting `detail: "brief"` above 20 — `full` may opt into a second credit bucket, `brief` cannot spend more by accident. `DomainProfileSchema.samplePois` `.max(5)` → `.max(10)` (server `SAMPLE_POI_LIMIT` matched) — a response bound, not a cost cap; see the numbers table above for what these widenings measured. Both widenings are explicitly authorised (Invariant 9) and recorded in `DECISIONS.md`. New `dense` fixture key (40 features, `_note`) in `test/fixtures/geoapify-places.json` exercises the 2-credit/10-sample paths. `scripts/measureTokenBudget.ts` (`measure:tokens`) produced the table above; `server.integration.test.ts` gained a strict-inequality regression guard (brief tokens < full tokens per real tool, no percentage floor). README criterion handed to DMS-505 with the table already written.
 - **Nager.Date Multi-Year Boundaries**:
   - API accepts queries strictly per calendar year. A stay spanning December 31 to January 2 requires two parallel queries merged in the normaliser.
   - Unsupported country codes must return `NOT_FOUND`, never an empty array pretending to be a complete calendar.
