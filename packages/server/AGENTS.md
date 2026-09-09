@@ -113,6 +113,8 @@ Follows the root testing philosophy exactly. The server-specific fixtures live i
 
 `transports/stdio.ts` speaks JSON-RPC over stdout. **Anything else written to stdout corrupts the framing and the client silently disconnects** — no `console.log`, no `process.stdout.write`, no stray `print`. All diagnostics go to `console.error` (stderr). This is why `src/index.ts` carries no top-level statements.
 
+`main()`'s body lives in an exported `startStdioTransport(): Promise<StdioTransportHandle>` so `cli.ts` can start it without also running `main()`'s own signal-handling. `main()` itself only runs behind a direct-execution guard (`realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)` — `realpathSync`, not a bare `===`, because an installed `bin` entry is a symlink and a bare comparison would silently never match), so both `node dist/transports/stdio.js` and `node dist/cli.js` (below) work.
+
 ### Running it locally / wiring Claude Desktop
 
 ```bash
@@ -143,3 +145,33 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"echo","arguments":{"message":"hi"}}}' \
   | node packages/server/dist/transports/stdio.js
 ```
+
+---
+
+## HTTP transport: session lifecycle and the CORS constraint
+
+`transports/http.ts` serves the same registry over Streamable HTTP for `packages/web` (the inspector). Wiring only, same rule as `stdio.ts`: no tool, schema or upstream logic lives here.
+
+**Loopback binding is the actual security boundary; CORS is the second layer, not the first.** `httpHost()` (`src/env.ts`) defaults to `127.0.0.1` — the server does not listen on the network by default, full stop. CORS only decides which *browser origins* may talk to that loopback listener; it does nothing for a client that can already reach the port directly.
+
+**Session lifecycle** — stateful, one `StreamableHTTPServerTransport` and one fresh `createServer()`-built `Server` per session (see root `DECISIONS.md` for why a shared `Server` was rejected), held in an in-memory `Map<sessionId, { transport, server }>`:
+
+- `POST /mcp`, no `mcp-session-id`, an initialize body → a new session: build the transport (`sessionIdGenerator: randomUUID`), register in `onsessioninitialized`, deregister in `transport.onclose`, `server.connect(transport)`, then `handleRequest`.
+- `POST /mcp`, a known `mcp-session-id` → dispatch straight to that session's transport.
+- `POST /mcp`, no session id, not an initialize body → `400` with a JSON-RPC error body.
+- `GET /mcp` (the SSE stream) / `DELETE /mcp` (session termination), unknown or missing session id → `404`.
+- Anything else → `404` (Express's default, since only the routes above are registered).
+- A trailing 4-arg Express error-handling middleware, registered last, catches anything thrown above all of this (e.g. `server.connect()` itself failing) and returns `jsonRpcError(res, 500, "Internal server error")` — never the raw error's message or stack. Express only treats a handler as error-handling middleware when its arity is exactly 4; a 3-arg handler in that position is silently treated as ordinary middleware and never invoked on error.
+
+**The one CORS header that silently breaks everything if it's missing:** `exposedHeaders: ["mcp-session-id"]`. The browser can always read a same-origin-allowed response's *body*, but a cross-origin response's *headers* are invisible to JS unless explicitly exposed. Miss this and the inspector's initialize call still succeeds — the session id is right there in the response header on the wire — but the SDK client can't read it, treats itself as sessionless, and every subsequent `POST` gets rejected as if initialize never happened. It looks like a server bug from the browser console; it is a CORS config bug. `express.json()` is scoped to `POST /mcp` only — putting it in front of the `GET` SSE route would make that route hang waiting on a body it never receives.
+
+### Running it
+
+```bash
+pnpm install
+pnpm -r run build                          # cli.ts and http.ts compile to packages/server/dist/
+node packages/server/dist/cli.js --transport http    # HTTP only
+node packages/server/dist/cli.js --transport both     # HTTP + stdio together
+```
+
+`GEOAPIFY_API_KEY` and, optionally, `BEARINGS_HTTP_PORT` / `BEARINGS_HTTP_HOST` / `BEARINGS_ALLOWED_ORIGINS` (see `src/env.ts`) must be set first; `--transport` defaults to `stdio` if omitted, so every existing Claude Desktop / Cursor config keeps working unmodified with no flag at all.
