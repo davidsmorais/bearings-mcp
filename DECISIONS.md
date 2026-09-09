@@ -120,6 +120,26 @@ outright — it breaks under `isolatedModules`, which this repo sets).
 
 **Status:** React Query layer, `QueryClient`, MCP client singleton, and `useToolList` / `useToolCall` hooks delivered under `_spells/004`. End-to-end verification against a running server is deferred to Linear DMS-503 (Streamable HTTP transport), which does not yet exist — the hooks are pinned by mocked-client unit tests in the meantime.
 
+---
+
+## 2026-09-09 — Stateful sessions: one transport, one `createServer()`, per session
+
+**Decision:** The Streamable HTTP transport (`packages/server/src/transports/http.ts`) is stateful. Each MCP session gets its own `StreamableHTTPServerTransport` *and* its own `createServer()`-built `Server`, keyed by `mcp-session-id` in an in-memory `Map`. No request is served by a shared, module-level `Server` instance.
+
+**Why:** The inspector holds a long-lived `Client` (`packages/web/src/lib/mcpClient.ts`, memoised across React StrictMode's double-mount) and relies on the GET SSE stream for server-initiated messages — both assume a session that persists across calls, which only a stateful transport provides. It is also the SDK's own canonical shape (`sessionIdGenerator`, `onsessioninitialized`, `transport.onclose`), so the code reads like the reference examples instead of fighting them. A single `Server` shared across sessions would interleave JSON-RPC request ids between unrelated clients; since the tool registry is module-level and cheap to wire, constructing a fresh `Server` per session costs nothing and removes that risk entirely.
+
+**Alternatives considered:** A stateless server-per-request (`sessionIdGenerator: undefined`) — fewer moving parts and no session map to clean up, but the SDK returns `405` on `GET` for a stateless transport, which would silently break the SSE stream the inspector may come to depend on, and it discards the server→client channel a stateful session gets for free. One shared `Server` across all sessions — rejected outright: it interleaves request ids and makes two concurrent inspector tabs cross-contaminate each other's in-flight calls.
+
+---
+
+## 2026-09-09 — `stdio` stays the default transport mode
+
+**Decision:** `cli.ts`'s `--transport` flag defaults to `stdio` when omitted. Switching a deployment to `http` or `both` is opt-in via an explicit flag; it is never the default.
+
+**Why:** Every Claude Desktop and Cursor config that already points at this server does so with no flag at all — either at `dist/transports/stdio.js` directly, or (after this ticket) at the `bearings-mcp` bin, which resolves to `dist/cli.js`. Flipping the default to anything other than `stdio` would silently change what those existing configs boot the moment someone rebuilds and reinstalls, with no local signal that behavior changed. `stdio` costs nothing extra to keep as default — the HTTP transport is additive, not a replacement — so there is no upside to defaulting anywhere else.
+
+**Alternatives considered:** Default to `both` (so a fresh `bearings-mcp` invocation always serves the inspector too) — rejected because it changes the resource footprint and network-listening behavior of every existing headless install without anyone asking for it, and because `both` mode requires `BEARINGS_HTTP_PORT` to be free, which a `stdio`-only deployment has no reason to guarantee. Default to `http` — rejected outright; it would break every desktop MCP client on the next rebuild.
+
 ## 2026-09-09 — Per-handler response shaping, registry-level token measurement
 
 **Decision:** `detail: "brief" | "full"` projection logic stays in each tool's own
