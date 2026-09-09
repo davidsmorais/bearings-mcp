@@ -167,7 +167,7 @@ Test the logic, not the internet.
 ```
 
 - Upstreams are mocked at the HTTP client core boundary.
-- Response fixtures are committed so the suite is deterministic and runs offline.
+- Response fixtures are committed so the suite is deterministic.
 - Cover: validation boundaries, each normaliser, threshold edges, partial-failure composition, ambiguous and empty geocoding.
 - If a test needs the network to pass, it is the wrong test.
 

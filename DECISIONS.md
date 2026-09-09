@@ -320,3 +320,38 @@ so it cannot drag the tool's appearance toward a templated dashboard.
 for `echo` or `resolve_destination`, but unreadable for the response that most needs
 reading); `@rjsf/core` for the forms, rejected earlier and still rejected — reskinning it
 costs more than the thin renderer in `zodToForm.ts`.
+
+---
+
+## 2026-09-09 — Manual verification checklist as a committed document; fixture provenance made explicit
+
+**Decision:** The DMS-502 manual checks live in `docs/manual-checks.md` as a
+runnable checklist with the expected output for each step, sourced from the
+committed fixtures so the doc and the automated suite cannot drift. Every new
+tool or shaping change updates it in the same PR. Separately, all four upstream
+fixtures now carry a `_note`: `nominatim.json` and `nager.json` record a live
+capture (URL, params, date); `open-meteo.json` and `geoapify-places.json` state
+that they are shaped to the documented response schema rather than captured
+verbatim, and why.
+
+**Why:** A senior submission is expected to show both an automated suite and a
+written list of the checks that can only be done by hand (real network, the
+Nominatim rate limiter, the MCP handshake, the inspector UI, clean-clone
+startup). Open-Meteo only serves a rolling 16-day window, so any verbatim capture
+ages out of range within weeks and its values drift on every request — a
+committed capture would make the per-day assertions in `openMeteo.test.ts`
+non-deterministic. Geoapify needs a keyed, credit-spending request, so a
+committed live capture is neither free nor reproducible. In both cases a
+schema-faithful hand-shaped fixture is the honest choice for a normaliser test,
+and the real-response contract is what `docs/manual-checks.md` exists to check.
+
+**Note:** the "automated suite runs offline with no network access" acceptance
+criterion is not claimed. The suite mocks every upstream at the HTTP client core
+boundary and is deterministic, but no guard enforces the absence of network
+access, and asserting an offline guarantee the repo does not enforce would be
+misleading. The README and `AGENTS.md` were adjusted to drop the offline claim.
+
+**Alternatives considered:** folding the checklist into the README (kept the
+README short instead, linked out); recapturing Open-Meteo live (rejected —
+non-deterministic and date-fragile); adding a `setupFiles` network tripwire to
+back an offline claim (out of scope for this slice, and the user's call).
