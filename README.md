@@ -1,5 +1,7 @@
 # Bearings MCP
 
+![Bearings MCP logo](./docs/images/logo.png)
+
 > A place name goes in. A structured location, a stay forecast, or an honest walking-distance read on the neighbourhood comes out — with the upstream cost of every call on the table.
 
 Bearings is an MCP server with three tools backed by public HTTP APIs, plus a React inspector that renders its forms from the server's own schemas — so the UI cannot drift from what the tools actually accept. Built as a take-home for a hotel chain's engineering team, and the interesting parts are all constraints: a geocoder that bans your IP at 1 req/sec, a POI API metered in credits, and agent callers that pay by the token for every field you hand back.
@@ -165,18 +167,13 @@ Put all three in one prompt and the model walks the chain itself — resolve the
 
 ![One prompt — resolve Almada, brief the weather, analyse the neighbourhood — and the server is called three times in sequence, each tool's output feeding the next](./docs/images/bearings%20single%20prompt.png)
 
-That's the `resolve_destination → get_destination_brief → analyse_neighbourhood` tree from the top of this README, run end to end from a single sentence. The four shots below take the same flow apart, one tool at a time:
+That's the `resolve_destination → get_destination_brief → analyse_neighbourhood` tree from the top of this README, run end to end from a single sentence. The three shots below take the same flow apart, one tool at a time:
 
 ![resolve_destination("Lisbon") comes back unambiguous — one clear match, not a candidate list](./docs/images/bearings-resolve%20destination.png)
 
 ![get_destination_brief for the resolved Lisbon location — a week of forecast plus a public-holiday check](./docs/images/bearings-destination%20brief.png)
 
 ![analyse_neighbourhood at 38.7115,-9.1449 — six domains rated by density, with nightlife honestly reported as unavailable rather than zero](./docs/images/bearings-neighboorhood%20check.png)
-
-![The same call at detail: full — every domain's actual nearest POIs, not just counts](./docs/images/bearings-full%20detail.png)
-
-Worth noting what didn't get smoothed over: on this run Geoapify's nightlife query threw a 400 — the category adapter was sending `entertainment.nightclub`, which isn't a real leaf in [Geoapify's taxonomy](https://apidocs.geoapify.com/docs/places/#categories) — and the model reported it as "unavailable," not silently as zero, even standing in Bairro Alto, Lisbon's own nightlife district. The bad category has since been corrected (the domain now queries `entertainment` alongside `catering.bar` and `catering.pub`), and the screenshot above predates that fix. What it captures still holds: the `sources` block and the `ToolError` taxonomy degrade one failed domain without dragging down the other five.
-
 ### 5. Project-scoped alternative (`.mcp.json`)
 
 Instead of `claude mcp add`, you can commit a project config at the repo root:
@@ -326,10 +323,16 @@ Upstreams are mocked at the HTTP client core boundary; fixtures are committed in
 
 Built with heavy AI assistance, said plainly — this is a submission for an AI agents platform, so a hidden workflow would rather defeat the point.
 
+
 - **Scaffolding — [Hocus](https://darkmagicstudios.com/products/hocus)**, a tool the author develops, used to scaffold agent personas, skills, and per-harness configuration so the same roster applies across Claude Code, Cursor, OpenCode and Antigravity.
-- **Planning → tickets → execution.** Architecture was planned in Claude, then broken into Linear tickets (`DMS-###`). Foundations first (shared schemas, HTTP core, walking-skeleton server), then feature tickets each in its own git worktree via Orca. Some upstream clients landed in parallel.
+  - Claude Code was used mostly for planning and plan orchestration
+  - Cursor was used for more targeted code tasks
+  - OpenCode was used mainly for commiting and keeping Biome passing
+  - Antigravity was only used for the front end of the inspector
+  
+- **Planning → tickets → execution.** Architecture was planned in Claude, then broken into Linear tickets (`DMS-###`). Foundations first (shared schemas, HTTP core, walking-skeleton server), then feature tickets each in its own git worktree via [Orca](https://www.onorca.dev/). Some upstream clients landed in parallel.
 - **Agent roster** (`AGENTS.md`): `founder` (architecture), `planner` (plans), `orchestrator` (battle plans), `server-dev` (handlers/upstreams/core), `web-dev` (inspector), `reviewer` (invariants/secrets), `qa` (edge cases), `costs-cleaner` (credits/tokens).
-- **Review:** invariants are codified and gated in CI (`pnpm lint` / `typecheck` / `knip` / `test`); `reviewer` and `qa` agents pass before a ticket is done; the author reads every AI-generated diff before commit. `DECISIONS.md` is written by the author only — agents flag decisions, they don't log them.
+- **Review:** invariants are codified and gated in CI (`pnpm lint` / `typecheck` / `knip` / `test`); `reviewer` and `qa` agents pass before a ticket is done; the author reads every AI-generated diff before commit.
 
 ---
 
