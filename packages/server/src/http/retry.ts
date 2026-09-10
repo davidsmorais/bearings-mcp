@@ -39,7 +39,7 @@ export function computeBackoffDelay(options: BackoffOptions): number {
   if (status === 429 || status === 503) {
     const retryAfterMs = parseRetryAfter(retryAfterHeader);
     if (retryAfterMs !== undefined) {
-      return retryAfterMs;
+      return Math.min(retryAfterMs, maxDelayMs);
     }
   }
 

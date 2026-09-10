@@ -5,7 +5,7 @@ export interface RateLimitConfig {
 
 export interface Clock {
   readonly now: () => number;
-  readonly sleep: (ms: number) => Promise<void>;
+  readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 export interface RateLimiter {
@@ -19,7 +19,7 @@ interface Waiter {
   onAbort?: () => void;
 }
 
-function abortError(signal: AbortSignal): Error {
+export function abortError(signal: AbortSignal): Error {
   if (signal.reason instanceof Error) {
     return signal.reason;
   }

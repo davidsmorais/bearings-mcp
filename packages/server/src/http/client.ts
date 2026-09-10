@@ -5,7 +5,7 @@ import { buildCacheKey, type CacheParams } from "./cacheKey.js";
 import { HOST_CONFIG } from "./config.js";
 import { type FaultKind, faultFor } from "./faults.js";
 import { mapHttpError } from "./mapError.js";
-import { type Clock, createRateLimiter, type RateLimiter } from "./rateLimiter.js";
+import { abortError, type Clock, createRateLimiter, type RateLimiter } from "./rateLimiter.js";
 import { computeBackoffDelay, isRetryable } from "./retry.js";
 import { createAttemptTimeout } from "./timeout.js";
 import type { HostId, HttpResult, RequestMeta } from "./types.js";
@@ -29,9 +29,36 @@ export interface HttpCore {
   ): Promise<HttpResult<T>>;
 }
 
+interface InFlightFlight<T = unknown> {
+  readonly controller: AbortController;
+  promise: Promise<HttpResult<T>>;
+  subscribers: number;
+  attempts: number;
+}
+
 const defaultClock: Clock = {
   now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep: (ms: number, signal?: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(abortError(signal));
+        return;
+      }
+      let onAbort: (() => void) | undefined;
+      const timer = setTimeout(() => {
+        if (signal && onAbort) {
+          signal.removeEventListener("abort", onAbort);
+        }
+        resolve();
+      }, ms);
+      if (signal) {
+        onAbort = () => {
+          clearTimeout(timer);
+          reject(abortError(signal));
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }),
 };
 
 const buildUrl = (baseUrl: string, path: string, params: CacheParams): URL => {
@@ -128,7 +155,7 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
     clock: { now: clock.now },
   });
   const limiters = new Map<HostId, RateLimiter>();
-  const inFlight = new Map<string, Promise<HttpResult<unknown>>>();
+  const inFlight = new Map<string, InFlightFlight<unknown>>();
 
   const getLimiter = (hostId: HostId): RateLimiter => {
     let limiter = limiters.get(hostId);
@@ -145,6 +172,7 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
     params: CacheParams,
     signal: AbortSignal | undefined,
     cacheKey: string,
+    onAttempt?: (attempt: number) => void,
   ): Promise<HttpResult<T>> => {
     const config = HOST_CONFIG[hostId];
     const startedAt = clock.now();
@@ -159,6 +187,7 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
 
     for (let attempt = 1; attempt <= config.retry.maxAttempts; attempt += 1) {
       attempts = attempt;
+      onAttempt?.(attempt);
 
       try {
         await getLimiter(hostId).acquire(signal);
@@ -202,7 +231,11 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
             status: response.status,
             retryAfterHeader: response.headers.get("Retry-After"),
           });
-          await clock.sleep(delayMs);
+          try {
+            await clock.sleep(delayMs, signal);
+          } catch {
+            return mapCallerAbort(hostId, attempts);
+          }
           continue;
         }
 
@@ -229,7 +262,11 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
             baseDelayMs: config.retry.baseDelayMs,
             maxDelayMs: config.retry.maxDelayMs,
           });
-          await clock.sleep(delayMs);
+          try {
+            await clock.sleep(delayMs, signal);
+          } catch {
+            return mapCallerAbort(hostId, attempts);
+          }
           continue;
         }
 
@@ -280,6 +317,10 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
       }
     }
 
+    if (opts.signal?.aborted) {
+      return mapCallerAbort(hostId, 0);
+    }
+
     const cacheKey = buildCacheKey(hostId, path, params);
     const cached = cache.get(cacheKey);
     if (cached !== undefined) {
@@ -292,17 +333,92 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
       return { ok: true, data: cached as T, meta };
     }
 
-    const existing = inFlight.get(cacheKey);
-    if (existing !== undefined) {
-      return existing as Promise<HttpResult<T>>;
+    let flight = inFlight.get(cacheKey);
+    if (flight === undefined) {
+      const flightController = new AbortController();
+      const flightEntry: InFlightFlight<unknown> = {
+        controller: flightController,
+        promise: undefined as unknown as Promise<HttpResult<unknown>>,
+        subscribers: 0,
+        attempts: 1,
+      };
+
+      const promise = executeRequest<unknown>(
+        hostId,
+        path,
+        params,
+        flightController.signal,
+        cacheKey,
+        (attempt) => {
+          flightEntry.attempts = attempt;
+        },
+      ).finally(() => {
+        if (inFlight.get(cacheKey) === flightEntry) {
+          inFlight.delete(cacheKey);
+        }
+      });
+
+      flightEntry.promise = promise;
+      flight = flightEntry;
+      inFlight.set(cacheKey, flight);
     }
 
-    const flight = executeRequest<T>(hostId, path, params, opts.signal, cacheKey).finally(() => {
-      inFlight.delete(cacheKey);
-    });
+    const currentFlight = flight;
+    const signal = opts.signal;
+    currentFlight.subscribers += 1;
 
-    inFlight.set(cacheKey, flight as Promise<HttpResult<unknown>>);
-    return flight;
+    if (!signal) {
+      return currentFlight.promise as Promise<HttpResult<T>>;
+    }
+
+    return new Promise<HttpResult<T>>((resolve) => {
+      let settled = false;
+
+      const cleanup = () => {
+        signal.removeEventListener("abort", onAbort);
+      };
+
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        currentFlight.subscribers = Math.max(0, currentFlight.subscribers - 1);
+        if (currentFlight.subscribers === 0) {
+          if (inFlight.get(cacheKey) === currentFlight) {
+            inFlight.delete(cacheKey);
+          }
+          currentFlight.controller.abort();
+        }
+        resolve(mapCallerAbort(hostId, currentFlight.attempts));
+      };
+
+      signal.addEventListener("abort", onAbort, { once: true });
+
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+
+      currentFlight.promise
+        .then((result) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(result as HttpResult<T>);
+        })
+        .catch((error) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(
+            createToolError(
+              "UPSTREAM_ERROR",
+              `Unexpected error calling ${hostId}: ${error instanceof Error ? error.message : String(error)}`,
+              { hostId, attempts: currentFlight.attempts },
+            ),
+          );
+        });
+    });
   };
 
   return { request };

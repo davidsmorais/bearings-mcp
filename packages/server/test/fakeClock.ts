@@ -29,9 +29,28 @@ export const createFakeClock = (startMs = 0): FakeClock => {
 
   return {
     now: () => nowMs,
-    sleep: (ms: number) =>
-      new Promise<void>((resolve) => {
-        pendingSleeps.push({ wakeAt: nowMs + ms, resolve });
+    sleep: (ms: number, signal?: AbortSignal) =>
+      new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+          return;
+        }
+        const entry: PendingSleep = { wakeAt: nowMs + ms, resolve };
+        pendingSleeps.push(entry);
+
+        if (signal) {
+          signal.addEventListener(
+            "abort",
+            () => {
+              const idx = pendingSleeps.indexOf(entry);
+              if (idx !== -1) {
+                pendingSleeps.splice(idx, 1);
+              }
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            },
+            { once: true },
+          );
+        }
       }),
     advance(ms: number) {
       nowMs += ms;

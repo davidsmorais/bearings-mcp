@@ -27,6 +27,17 @@ describe("retry helpers", () => {
     randomSpy.mockRestore();
     expect(delay).toBe(2000);
   });
+
+  it("clamps Retry-After to maxDelayMs when header exceeds the cap", () => {
+    const delay = computeBackoffDelay({
+      attempt: 1,
+      baseDelayMs: 500,
+      maxDelayMs: 8000,
+      status: 429,
+      retryAfterHeader: "3600",
+    });
+    expect(delay).toBe(8000);
+  });
 });
 
 describe("createHttpCore retry behaviour", () => {

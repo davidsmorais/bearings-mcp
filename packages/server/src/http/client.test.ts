@@ -176,4 +176,212 @@ describe("createHttpCore request()", () => {
     }
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("aborts immediately when caller cancels during retry backoff sleep", async () => {
+    const clock = createFakeClock();
+    const controller = new AbortController();
+    const fetch = vi.fn(async () => new Response("busy", { status: 429 }));
+    const core = createHttpCore({ fetch, clock });
+
+    const requestPromise = core.request(
+      "open-meteo",
+      "/forecast",
+      { lat: "48.8" },
+      { signal: controller.signal },
+    );
+
+    await flushMicrotasks();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    controller.abort();
+    await flushMicrotasks();
+
+    const result = await requestPromise;
+    expect(isToolError(result)).toBe(true);
+    if (isToolError(result)) {
+      expect(result.code).toBe("UPSTREAM_ERROR");
+      expect(result.message).toContain("cancelled");
+      expect(result.details?.attempts).toBe(1);
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows Caller B to succeed when concurrent Caller A aborts mid-flight", async () => {
+    let releaseFetch: (() => void) | undefined;
+    const fetchGate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+
+    const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      await fetchGate;
+      if (init?.signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      return jsonResponse({ city: "Paris" });
+    });
+
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const params = { q: "Paris" };
+    const controllerA = new AbortController();
+    const controllerB = new AbortController();
+
+    const callerA = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: controllerA.signal,
+    });
+    const callerB = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: controllerB.signal,
+    });
+
+    await flushMicrotasks();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    controllerA.abort();
+    await flushMicrotasks();
+
+    releaseFetch?.();
+    const [resultA, resultB] = await Promise.all([callerA, callerB]);
+
+    expect(isToolError(resultA)).toBe(true);
+    if (isToolError(resultA)) {
+      expect(resultA.code).toBe("UPSTREAM_ERROR");
+      expect(resultA.message).toContain("cancelled");
+    }
+
+    expect(isToolError(resultB)).toBe(false);
+    if (!isToolError(resultB)) {
+      expect(resultB.data).toEqual({ city: "Paris" });
+    }
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows Caller A to succeed when concurrent Caller B aborts mid-flight", async () => {
+    let releaseFetch: (() => void) | undefined;
+    const fetchGate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+
+    const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      await fetchGate;
+      if (init?.signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      return jsonResponse({ city: "Paris" });
+    });
+
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const params = { q: "Paris" };
+    const controllerA = new AbortController();
+    const controllerB = new AbortController();
+
+    const callerA = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: controllerA.signal,
+    });
+    const callerB = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: controllerB.signal,
+    });
+
+    await flushMicrotasks();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    controllerB.abort();
+    await flushMicrotasks();
+
+    releaseFetch?.();
+    const [resultA, resultB] = await Promise.all([callerA, callerB]);
+
+    expect(isToolError(resultA)).toBe(false);
+    if (!isToolError(resultA)) {
+      expect(resultA.data).toEqual({ city: "Paris" });
+    }
+
+    expect(isToolError(resultB)).toBe(true);
+    if (isToolError(resultB)) {
+      expect(resultB.code).toBe("UPSTREAM_ERROR");
+      expect(resultB.message).toContain("cancelled");
+    }
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts underlying network fetch when all concurrent callers abort", async () => {
+    let underlyingFetchSignal: AbortSignal | null | undefined;
+    const fetch = vi.fn(
+      (_input: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          underlyingFetchSignal = init?.signal;
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }),
+    );
+
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const params = { q: "Paris" };
+    const controllerA = new AbortController();
+    const controllerB = new AbortController();
+
+    const callerA = core.request("nominatim", "/search", params, {
+      signal: controllerA.signal,
+    });
+    const callerB = core.request("nominatim", "/search", params, {
+      signal: controllerB.signal,
+    });
+
+    await flushMicrotasks();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(underlyingFetchSignal?.aborted).toBe(false);
+
+    controllerA.abort();
+    await flushMicrotasks();
+    expect(underlyingFetchSignal?.aborted).toBe(false);
+
+    controllerB.abort();
+    await flushMicrotasks();
+    expect(underlyingFetchSignal?.aborted).toBe(true);
+
+    const [resultA, resultB] = await Promise.all([callerA, callerB]);
+    expect(isToolError(resultA)).toBe(true);
+    expect(isToolError(resultB)).toBe(true);
+  });
+
+  it("immediately aborts pre-aborted caller without disrupting active flight", async () => {
+    let releaseFetch: (() => void) | undefined;
+    const fetchGate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+
+    const fetch = vi.fn(async () => {
+      await fetchGate;
+      return jsonResponse({ city: "Paris" });
+    });
+
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const params = { q: "Paris" };
+    const controllerA = new AbortController();
+    const preAborted = AbortSignal.abort();
+
+    const callerA = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: controllerA.signal,
+    });
+    const callerPreAborted = core.request<{ city: string }>("nominatim", "/search", params, {
+      signal: preAborted,
+    });
+
+    const resultPreAborted = await callerPreAborted;
+    expect(isToolError(resultPreAborted)).toBe(true);
+    if (isToolError(resultPreAborted)) {
+      expect(resultPreAborted.code).toBe("UPSTREAM_ERROR");
+      expect(resultPreAborted.message).toContain("cancelled");
+      expect(resultPreAborted.details?.attempts).toBe(0);
+    }
+
+    releaseFetch?.();
+    const resultA = await callerA;
+    expect(isToolError(resultA)).toBe(false);
+    if (!isToolError(resultA)) {
+      expect(resultA.data).toEqual({ city: "Paris" });
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 });
