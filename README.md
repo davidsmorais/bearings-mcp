@@ -308,7 +308,7 @@ Four free public APIs, four different ways to get cut off mid-request. Each has 
 ## Testing
 
 ```bash
-pnpm test        # 538 tests across the three packages — offline, deterministic
+pnpm test        # 540 tests across the three packages — offline, deterministic
 pnpm typecheck   # tsc --noEmit, every package
 pnpm knip        # unused files, exports and dependencies
 pnpm lint        # biome check . — lint + format

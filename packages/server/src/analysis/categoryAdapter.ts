@@ -16,17 +16,26 @@ import {
 export const GEOAPIFY_CATEGORY_STRINGS: Record<PoiCategory, readonly string[]> = {
   dining: ["catering.restaurant"],
   cafes: ["catering.cafe"],
-  // Geoapify has no `nightlife` category and no `entertainment.nightclub` leaf —
-  // nightclubs sit under `adult.nightclub`. `entertainment` is the closest parent
-  // Geoapify actually documents (it also covers cinemas, theatres and venues), so
-  // bars + pubs stay the primary signal and `entertainment` is the broad catch.
-  // Counts in `analyseNeighbourhood` are unfiltered, so this deliberately widens
-  // `nightlife` to "going-out venues"; the density thresholds want live re-calibration.
-  nightlife: ["catering.bar", "catering.pub", "entertainment"],
+  // Geoapify has no `nightlife` category and no `entertainment.nightclub` leaf;
+  // nightclubs sit under `adult.nightclub`. An earlier revision reached for the
+  // `entertainment` *parent* instead, which was a mistake: Geoapify returns a feature's
+  // full category ancestry, so `entertainment` matched every museum, theatre, cinema and
+  // zoo in the radius. Counts here are per-domain and unfiltered, so those were tallied
+  // as nightlife against thresholds calibrated on bars — and museums came back on the
+  // culture query too, billing the same venue to two domains. Leaves only, never parents:
+  // see the ALL_QUERIED_STRINGS guard below, which now makes that unrepeatable.
+  nightlife: ["catering.bar", "catering.pub", "adult.nightclub"],
   groceries: ["commercial.supermarket"],
   transit: ["public_transport"],
   parks: ["leisure.park"],
-  culture: ["entertainment.culture", "entertainment.museum", "tourism.attraction"],
+  // `entertainment.cinema` belongs here, not in nightlife — the threshold note for this
+  // domain reads "museums, galleries and cinemas".
+  culture: [
+    "entertainment.culture",
+    "entertainment.museum",
+    "entertainment.cinema",
+    "tourism.attraction",
+  ],
 };
 
 /**
@@ -130,3 +139,47 @@ export const domainsForRequestedCategories = (
     DOMAIN_MEMBERS[domain].some((category) => requested.has(category)),
   );
 };
+
+/** Every Geoapify string some domain sends upstream, paired with the domain that sends it. */
+const ALL_QUERIED_STRINGS: readonly {
+  readonly prefix: string;
+  readonly domain: NeighbourhoodDomain;
+}[] = NeighbourhoodDomainSchema.options.flatMap((domain) =>
+  geoapifyStringsForDomain(domain).map((prefix) => ({ prefix, domain })),
+);
+
+/**
+ * Module-load guards on the category table. Both are config-only invariants — breakable
+ * by an edit to `GEOAPIFY_CATEGORY_STRINGS`, never by input — so failing at load is the
+ * right severity, matching `POI_CATEGORY_TO_DOMAIN`'s double-mapping throw above.
+ *
+ * The second one is the guard this table needed and did not have. Geoapify returns a
+ * feature's full category ancestry, so querying a parent string silently drags every
+ * child into that domain: `entertainment` (nightlife) matched `entertainment.museum`
+ * (culture), which meant museums and theatres were counted as nightlife *and* returned a
+ * second time by the culture query, billing one venue to two domains.
+ */
+(() => {
+  for (const { prefix, domain } of ALL_QUERIED_STRINGS) {
+    const resolved = domainForGeoapifyCategories([prefix]);
+    if (resolved !== domain) {
+      throw new Error(
+        `Geoapify category "${prefix}" is queried by "${domain}" but classifies back as ` +
+          `"${resolved ?? "nothing"}"`,
+      );
+    }
+  }
+
+  for (const left of ALL_QUERIED_STRINGS) {
+    for (const right of ALL_QUERIED_STRINGS) {
+      if (left.domain === right.domain || !isDottedPrefixOf(left.prefix, right.prefix)) {
+        continue;
+      }
+      throw new Error(
+        `Geoapify category "${left.prefix}" (${left.domain}) is an ancestor of ` +
+          `"${right.prefix}" (${right.domain}), so a ${left.domain} query would return ` +
+          `${right.domain} venues. Query leaves, not parents.`,
+      );
+    }
+  }
+})();

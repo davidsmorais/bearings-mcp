@@ -43,6 +43,29 @@ describe("geoapifyStringsForDomain", () => {
       expect(new Set(strings).size).toBe(strings.length);
     }
   });
+
+  it("never lets one domain query an ancestor of another domain's category", () => {
+    // Geoapify returns a feature's full category ancestry, so a parent string drags every
+    // child into the querying domain's count and bills that venue to two domains. This is
+    // the property `entertainment` (nightlife) broke against `entertainment.museum`
+    // (culture). `categoryAdapter.ts` also asserts it at module load; this states it as a
+    // contract rather than leaving it to an import-time throw.
+    const queried = NeighbourhoodDomainSchema.options.flatMap((domain) =>
+      geoapifyStringsForDomain(domain).map((prefix) => ({ prefix, domain })),
+    );
+
+    for (const left of queried) {
+      for (const right of queried) {
+        if (left.domain === right.domain) continue;
+        const isAncestor =
+          right.prefix === left.prefix || right.prefix.startsWith(`${left.prefix}.`);
+        expect(
+          isAncestor,
+          `"${left.prefix}" (${left.domain}) is an ancestor of "${right.prefix}" (${right.domain})`,
+        ).toBe(false);
+      }
+    }
+  });
 });
 
 describe("domainForGeoapifyCategories / poiCategoryForGeoapifyCategories", () => {
@@ -51,17 +74,26 @@ describe("domainForGeoapifyCategories / poiCategoryForGeoapifyCategories", () =>
     expect(poiCategoryForGeoapifyCategories(["catering.restaurant"])).toBe("dining");
   });
 
-  it("classifies an entertainment feature as nightlife", () => {
-    expect(domainForGeoapifyCategories(["entertainment"])).toBe("nightlife");
-    expect(domainForGeoapifyCategories(["entertainment.cinema"])).toBe("nightlife");
+  it("classifies a nightclub as nightlife", () => {
+    expect(domainForGeoapifyCategories(["adult", "adult.nightclub"])).toBe("nightlife");
+    expect(domainForGeoapifyCategories(["catering", "catering.bar"])).toBe("nightlife");
   });
 
-  it("keeps entertainment.culture / entertainment.museum in culture, not nightlife", () => {
-    // `entertainment` (nightlife) is a depth-1 prefix; the culture leaves are deeper
-    // and must still win the longest-prefix match.
-    expect(domainForGeoapifyCategories(["entertainment.culture"])).toBe("culture");
-    expect(domainForGeoapifyCategories(["entertainment.museum"])).toBe("culture");
+  it("keeps every entertainment leaf in culture and none of them in nightlife", () => {
+    // The bare `entertainment` parent used to sit in nightlife, which made every one of
+    // these a nightlife venue — Geoapify sends the full ancestry, so the parent matched
+    // them all. Nightlife no longer queries a parent, so they classify only as culture.
+    for (const leaf of ["entertainment.culture", "entertainment.museum", "entertainment.cinema"]) {
+      expect(domainForGeoapifyCategories(["entertainment", leaf])).toBe("culture");
+    }
     expect(poiCategoryForGeoapifyCategories(["entertainment.culture.theatre"])).toBe("culture");
+  });
+
+  it("no longer claims a bare entertainment feature — a zoo is not a night out", () => {
+    // ["entertainment", "entertainment.zoo"] is what Geoapify sends for a zoo. It used to
+    // resolve to nightlife via the depth-1 `entertainment` prefix and be counted as such.
+    expect(domainForGeoapifyCategories(["entertainment"])).toBeUndefined();
+    expect(domainForGeoapifyCategories(["entertainment", "entertainment.zoo"])).toBeUndefined();
   });
 
   it("classifies a park feature as greenSpace", () => {

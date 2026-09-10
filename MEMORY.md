@@ -71,6 +71,17 @@
 partitions the returned POIs into walking rings client-side, and rates each domain by
 **venue density in venues/km² at the 500 m ring** — the `CALIBRATION_RADIUS_M` walk.*
 
+**Category leaves, never parents (corrected 2026-09-10, DMS review).** `nightlife` queried
+the bare `entertainment` parent. Geoapify returns a feature's full category ancestry, so
+that string matched every museum, theatre, cinema and zoo in the radius — all counted as
+nightlife against thresholds calibrated on bars, and museums/theatres came back a second
+time on the culture query, billing one venue to two domains. `nightlife` is now
+`catering.bar, catering.pub, adult.nightclub`; `entertainment.cinema` moved to `culture`,
+where the threshold note already said cinemas belonged. Two module-load guards in
+`analysis/categoryAdapter.ts` make it unrepeatable: every queried string must classify back
+to its own domain, and no domain's string may be a dotted ancestor of another's. The
+nightlife reference reading below ("20 bars") is now what the code actually counts.
+
 **Rating radius (corrected 2026-09-10, DMS review).** Density normalises for area but POI
 density genuinely falls off with radius, and the fixed `limitPerCategory` cap makes it
 collapse: 20 venues is 25.5/km² at 500 m and 1.6/km² at 2000 m for the *same*
