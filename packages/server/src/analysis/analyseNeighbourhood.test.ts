@@ -414,3 +414,58 @@ describe("analyseNeighbourhood — detail-gated credit ceiling (DMS-501)", () =>
     expect(result.domains.dining?.samplePois).toHaveLength(2);
   });
 });
+
+describe("analyseNeighbourhood — credit accounting bills returned, not normalised, counts", () => {
+  it("sums per-domain credits on what Geoapify returned even when features are dropped", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    // nightlife: 21 features on the wire (2 credits), one unnormalisable (no place_id).
+    // dining: 5 clean features (1 credit). Billed total is 3, not the 2 that a
+    // post-normalisation count (20 + 5 = 25 → ceil = 2) would report.
+    const brokenBar = {
+      type: "Feature",
+      properties: {
+        name: "No id bar",
+        lat: denseUrban.lat,
+        lon: denseUrban.lon,
+        categories: ["catering.bar"],
+        distance: 5,
+      },
+      geometry: { type: "Point", coordinates: [denseUrban.lon, denseUrban.lat] },
+    };
+    const fetch = geoapifyFetch((categories) => {
+      if (categories?.includes("catering.bar")) {
+        return jsonResponse({
+          type: "FeatureCollection",
+          features: [...makeNightlifePlaces(20), brokenBar],
+        });
+      }
+      if (categories?.includes("catering.restaurant")) {
+        return jsonResponse({
+          type: "FeatureCollection",
+          features: Array.from({ length: 5 }, (_, index) =>
+            makePlace(`dining-${index}`, `Restaurant ${index}`, 40 + index * 5, [
+              "catering.restaurant",
+            ]),
+          ),
+        });
+      }
+      return jsonResponse({ type: "FeatureCollection", features: [] });
+    });
+
+    const result = await runComposition(
+      buildInput({ categories: ["nightlife", "dining"], detail: "full", limitPerCategory: 40 }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    if (result.detail !== "full") throw new Error("expected a full profile");
+
+    expect(result.domains.nightlife?.count).toBe(20);
+    expect(result.credits.byDomain.nightlife).toBe(2);
+    expect(result.credits.byDomain.dining).toBe(1);
+    expect(result.credits.consumed).toBe(3);
+    expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
+  });
+});
