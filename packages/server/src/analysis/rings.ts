@@ -1,4 +1,5 @@
 import type { PointOfInterest } from "@bearings/shared";
+import { CALIBRATION_RADIUS_M } from "./thresholds.js";
 
 /**
  * Walking-time bands used as the inner ring ladder: ~3 min / ~6 min / ~12 min at a
@@ -27,6 +28,21 @@ export interface RingPartition {
 export const ringsWithin = (radiusM: number): readonly number[] => {
   const withinLadder = WALKING_RADII_M.filter((entry) => entry <= radiusM);
   return [...new Set([...withinLadder, radiusM])].sort((a, b) => a - b);
+};
+
+/**
+ * The ring a domain rating is read off: the `CALIBRATION_RADIUS_M` (500 m) entry when
+ * the request was wide enough to have one, otherwise the request's outer ring. A
+ * `radiusM` below 500 m has no calibrated ring; its outer ring is tighter than 500 m,
+ * so the same sample reports a higher density there — over-rating in that direction is
+ * the safe one under the "a capped count only lets a rating rise" guarantee.
+ */
+export const ratingRing = (rings: readonly RingCount[], radiusM: number): RingCount => {
+  const calibrated = rings.find((ring) => ring.radiusM === CALIBRATION_RADIUS_M);
+  if (calibrated !== undefined) {
+    return calibrated;
+  }
+  return rings[rings.length - 1] ?? { radiusM, count: 0 };
 };
 
 /**

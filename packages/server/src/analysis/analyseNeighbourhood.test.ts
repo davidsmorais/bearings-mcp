@@ -317,6 +317,10 @@ describe("analyseNeighbourhood — brief vs full", () => {
     // brief drops bulk, not evidence — the credit block is identical at both levels.
     expect(brief.credits).toEqual(full.credits);
     expect(full.credits.consumed).toBe(1);
+    // `ratingRadiusM` is a verdict field, not bulk — it survives into brief so the
+    // rating there still says which ring it was read at.
+    expect(brief.domains.nightlife?.ratingRadiusM).toBe(500);
+    expect(full.domains.nightlife?.ratingRadiusM).toBe(500);
   });
 });
 
@@ -338,7 +342,7 @@ describe("analyseNeighbourhood — domain scoping", () => {
 });
 
 describe("analyseNeighbourhood — detail-gated credit ceiling (DMS-501)", () => {
-  it("reports 2 credits and countCapped at the 40-place ceiling with detail: full", async () => {
+  it("reports 2 credits at the 40-place ceiling with detail: full", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 
     const fetch = geoapifyFetch((categories) =>
@@ -357,7 +361,10 @@ describe("analyseNeighbourhood — detail-gated credit ceiling (DMS-501)", () =>
     if (result.detail !== "full") throw new Error("expected a full profile");
 
     expect(result.domains.nightlife?.count).toBe(40);
-    expect(result.domains.nightlife?.countCapped).toBe(true);
+    // The dense fixture spreads 7 of its 40 POIs past the 500 m rating ring, so the
+    // rating-ring count is not a floor even though the whole response was capped.
+    expect(result.domains.nightlife?.countCapped).toBe(false);
+    expect(result.domains.nightlife?.ratingRadiusM).toBe(500);
     // ceil(40 / 20) = 2 — the second credit bucket the raised ceiling opts into.
     expect(result.credits.byDomain.nightlife).toBe(2);
     expect(result.credits.consumed).toBe(2);

@@ -10,6 +10,7 @@ const rating = (count: number, countCapped = false) => ({
   rating: count > 20 ? "high" : "low",
   count,
   radiusM: 500,
+  ratingRadiusM: 500,
   densityPerKm2: count / 0.785,
   countCapped,
   rings: [{ radiusM: 250, count: Math.floor(count / 2) }],

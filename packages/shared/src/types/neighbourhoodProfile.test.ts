@@ -30,6 +30,8 @@ const makeDomainRating = (
   overrides: Partial<{
     rating: "none" | "low" | "medium" | "high";
     count: number;
+    radiusM: number;
+    ratingRadiusM: number;
     densityPerKm2: number;
     countCapped: boolean;
   }> = {},
@@ -37,6 +39,7 @@ const makeDomainRating = (
   rating: "high" as const,
   count: 20,
   radiusM: 500,
+  ratingRadiusM: 500,
   densityPerKm2: 25.5,
   countCapped: true,
   rings: [
@@ -107,6 +110,7 @@ describe("NeighbourhoodProfileSchema — full arm", () => {
       rating: "none" as const,
       count: 0,
       radiusM: 500,
+      ratingRadiusM: 500,
       densityPerKm2: 0,
       countCapped: false,
       rings: [{ radiusM: 500, count: 0 }],
@@ -247,6 +251,12 @@ describe("DomainRatingSchema", () => {
   it("rejects a rating missing rings", () => {
     const { rings: _rings, ...withoutRings } = makeDomainRating();
     const result = DomainRatingSchema.safeParse(withoutRings);
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a rating missing ratingRadiusM", () => {
+    const { ratingRadiusM: _ratingRadiusM, ...withoutRatingRadius } = makeDomainRating();
+    const result = DomainRatingSchema.safeParse(withoutRatingRadius);
     expect(result.success).toBe(false);
   });
 
