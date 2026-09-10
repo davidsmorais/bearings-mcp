@@ -1,4 +1,5 @@
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 import { CallHistory } from "@/components/CallHistory";
 import { ComparePanel } from "@/components/ComparePanel";
 import { FaultToggle } from "@/components/FaultToggle";
@@ -39,8 +40,10 @@ export const App = () => {
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-6 font-sans text-[#e0eaf5]">
       <header className="border-b border-[#162638] pb-4">
-        <h1 className="font-semibold text-2xl tracking-tight text-[#e0eaf5]">Bearings Inspector</h1>
-        <p className="mt-1 text-sm text-[#7b8fa8]">
+        <h1>
+          <img src={logo} alt="Bearings MCP" className="h-20 w-auto" />
+        </h1>
+        <p className="mt-2 text-sm text-[#7b8fa8]">
           Development inspector for the Bearings MCP server. Forms are generated from the same Zod
           schemas the server validates with — nothing here is hand-written per tool. Token counts
           are approximate and come from the server's own envelope.
