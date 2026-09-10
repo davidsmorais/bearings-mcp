@@ -285,6 +285,103 @@ describe("searchPlaces", () => {
     }
   });
 
+  it("bills credits on the feature count Geoapify returned, not on what survived normalisation", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    // 21 features on the wire: 19 valid, one missing place_id, one missing coordinates.
+    // Geoapify billed ceil(21 / 20) = 2 credits; normalisation keeps only 19.
+    const features = [
+      ...Array.from({ length: 19 }, (_, index) => ({
+        type: "Feature",
+        properties: {
+          name: `Venue ${index}`,
+          lat: 48.8566,
+          lon: 2.3522,
+          place_id: `place-${index}`,
+          categories: ["catering.restaurant"],
+          distance: 10 + index,
+        },
+      })),
+      {
+        type: "Feature",
+        properties: {
+          name: "No id",
+          lat: 48.8566,
+          lon: 2.3522,
+          categories: ["catering.restaurant"],
+          distance: 5,
+        },
+      },
+      {
+        type: "Feature",
+        properties: {
+          name: "No coordinates",
+          place_id: "place-no-coords",
+          categories: ["catering.restaurant"],
+          distance: 5,
+        },
+      },
+    ];
+
+    const fetch = vi.fn(async () => jsonResponse({ type: "FeatureCollection", features }));
+    const core = createHttpCore({ fetch, clock: instantClock });
+
+    const result = await searchPlaces(
+      {
+        coordinates: { lat: 48.8566, lon: 2.3522 },
+        radiusM: 500,
+        categories: ["dining"],
+        limit: 40,
+      },
+      { core },
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (!isToolError(result)) {
+      expect(result.places).toHaveLength(19);
+      expect(result.returnedCount).toBe(21);
+      expect(result.credits).toBe(2);
+    }
+  });
+
+  it("bills zero credits on a cache hit regardless of the returned feature count", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const features = Array.from({ length: 25 }, (_, index) => ({
+      type: "Feature",
+      properties: {
+        name: `Venue ${index}`,
+        lat: 48.8566,
+        lon: 2.3522,
+        place_id: `place-${index}`,
+        categories: ["catering.restaurant"],
+        distance: 10 + index,
+      },
+    }));
+    const fetch = vi.fn(async () => jsonResponse({ type: "FeatureCollection", features }));
+    const core = createHttpCore({ fetch, clock: instantClock });
+    const input = {
+      coordinates: { lat: 48.8566, lon: 2.3522 },
+      radiusM: 500,
+      categories: ["dining"] as const,
+      limit: 40,
+    };
+
+    const first = await searchPlaces(input, { core });
+    const second = await searchPlaces(input, { core });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    if (!isToolError(first)) {
+      expect(first.returnedCount).toBe(25);
+      expect(first.credits).toBe(2);
+    }
+    if (!isToolError(second)) {
+      expect(second.meta.cacheHit).toBe(true);
+      expect(second.returnedCount).toBe(25);
+      expect(second.credits).toBe(0);
+    }
+  });
+
   it("reports zero credits when the HTTP core serves the response from cache", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";
 

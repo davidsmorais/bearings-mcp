@@ -2,7 +2,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { allowedOrigins, assertRequiredEnv, httpHost, httpPort, loadEnvFile } from "./env.js";
+import {
+  allowedHosts,
+  allowedOrigins,
+  assertRequiredEnv,
+  httpHost,
+  httpPort,
+  loadEnvFile,
+} from "./env.js";
 
 describe("loadEnvFile", () => {
   const cwd = process.cwd();
@@ -142,5 +149,26 @@ describe("allowedOrigins", () => {
   it("parses a comma-separated override, trimming whitespace", () => {
     process.env.BEARINGS_ALLOWED_ORIGINS = " https://example.com , https://foo.example.com ";
     expect(allowedOrigins()).toEqual(["https://example.com", "https://foo.example.com"]);
+  });
+});
+
+describe("allowedHosts", () => {
+  afterEach(() => {
+    delete process.env.BEARINGS_ALLOWED_HOSTS;
+    delete process.env.BEARINGS_HTTP_HOST;
+  });
+
+  it("defaults to loopback plus the resolved bind host, deduped", () => {
+    expect(allowedHosts()).toEqual(["127.0.0.1", "localhost", "[::1]"]);
+  });
+
+  it("includes a non-loopback BEARINGS_HTTP_HOST in the default set", () => {
+    process.env.BEARINGS_HTTP_HOST = "bearings.local";
+    expect(allowedHosts()).toEqual(["127.0.0.1", "localhost", "[::1]", "bearings.local"]);
+  });
+
+  it("parses a comma-separated override, trimming whitespace", () => {
+    process.env.BEARINGS_ALLOWED_HOSTS = " bearings.example.com , api.example.com ";
+    expect(allowedHosts()).toEqual(["bearings.example.com", "api.example.com"]);
   });
 });

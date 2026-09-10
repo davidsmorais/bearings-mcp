@@ -384,4 +384,55 @@ describe("createHttpCore request()", () => {
     }
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  describe("terminal classification breaks the retry loop", () => {
+    afterEach(() => {
+      delete process.env.GEOAPIFY_API_KEY;
+    });
+
+    it("stops on a Geoapify quota 429 — one request, no backoff sleep", async () => {
+      process.env.GEOAPIFY_API_KEY = "test-key";
+      const sleep = vi.fn(async () => {});
+      const fetch = vi.fn(async () => jsonResponse({ message: "Daily quota limit exceeded" }, 429));
+      const core = createHttpCore({ fetch, clock: { now: () => 0, sleep } });
+
+      const result = await core.request("geoapify", "/v2/places", { categories: "catering.bar" });
+
+      expect(isToolError(result)).toBe(true);
+      if (isToolError(result)) {
+        expect(result.code).toBe("QUOTA_EXCEEDED");
+        expect(result.details?.attempts).toBe(1);
+      }
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it("still retries a plain Geoapify 429 to maxAttempts and maps it RATE_LIMITED", async () => {
+      process.env.GEOAPIFY_API_KEY = "test-key";
+      const fetch = vi.fn(async () => jsonResponse({ message: "Too many requests" }, 429));
+      const core = createHttpCore({ fetch, clock: instantClock });
+
+      const result = await core.request("geoapify", "/v2/places", { categories: "catering.bar" });
+
+      expect(isToolError(result)).toBe(true);
+      if (isToolError(result)) {
+        expect(result.code).toBe("RATE_LIMITED");
+      }
+      expect(fetch).toHaveBeenCalledTimes(HOST_CONFIG.geoapify.retry.maxAttempts);
+    });
+
+    it("leaves a host with no classifyStatus retrying a 429 as before", async () => {
+      const fetch = vi.fn(async () => jsonResponse({ message: "Daily quota limit exceeded" }, 429));
+      const core = createHttpCore({ fetch, clock: instantClock });
+
+      // open-meteo has no classifyStatus — the quota body is meaningless to it.
+      const result = await core.request("open-meteo", "/v1/forecast", { latitude: "48.8" });
+
+      expect(isToolError(result)).toBe(true);
+      if (isToolError(result)) {
+        expect(result.code).toBe("RATE_LIMITED");
+      }
+      expect(fetch).toHaveBeenCalledTimes(HOST_CONFIG["open-meteo"].retry.maxAttempts);
+    });
+  });
 });

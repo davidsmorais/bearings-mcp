@@ -262,3 +262,42 @@ describe("fetchForecast — upstream failures", () => {
     expect(result.message).toContain("°F");
   });
 });
+
+describe("fetchForecast — partial hourly data", () => {
+  /** Nulls every hourly reading for `date` in a synthetic payload. */
+  const blankDay = (payload: ReturnType<typeof synthPayload>, date: string) => {
+    payload.hourly.time.forEach((stamp, index) => {
+      if (stamp.startsWith(date)) {
+        (payload.hourly.temperature_2m as (number | null)[])[index] = null;
+        (payload.hourly.precipitation as (number | null)[])[index] = null;
+      }
+    });
+    return payload;
+  };
+
+  it("returns the usable days and names the gap when one mid-range day has no data", async () => {
+    const payload = blankDay(synthPayload("2026-09-08", "2026-09-10"), "2026-09-09");
+    const { core } = coreReturning(payload);
+
+    const result = await fetchForecast(PARIS, FIXTURE_RANGE, { core, now: at("2026-09-08") });
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    expect(result.days.map((day) => day.date)).toEqual(["2026-09-08", "2026-09-10"]);
+    expect(result.missingDates).toEqual(["2026-09-09"]);
+  });
+
+  it("still errors when no day in the range has usable data", async () => {
+    let payload = synthPayload("2026-09-08", "2026-09-10");
+    for (const date of ["2026-09-08", "2026-09-09", "2026-09-10"]) {
+      payload = blankDay(payload, date);
+    }
+    const { core } = coreReturning(payload);
+
+    const result = await fetchForecast(PARIS, FIXTURE_RANGE, { core, now: at("2026-09-08") });
+
+    expect(isToolError(result)).toBe(true);
+    if (!isToolError(result)) return;
+    expect(result.code).toBe(ToolErrorCode.INTERNAL_ERROR);
+  });
+});

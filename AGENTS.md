@@ -120,7 +120,7 @@ Any rating, score or classification returns the data that produced it.
 
 ```
 ❌ { nightlife: "8/10" }
-✅ { nightlife: "high", venues: 34, radiusM: 500 }
+✅ { nightlife: "high", count: 34, radiusM: 1000, ratingRadiusM: 500 }
 ```
 
 **7. Analysis thresholds are named constants in one block.**

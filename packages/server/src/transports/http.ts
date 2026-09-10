@@ -6,6 +6,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import {
+  allowedHosts as defaultAllowedHosts,
   allowedOrigins as defaultAllowedOrigins,
   faultInjectionEnabled,
   httpHost,
@@ -14,10 +15,18 @@ import {
 import { getFaults, parseFaultMap, setFaults } from "../http/faults.js";
 import { createServer } from "../server.js";
 
+/** Ceiling on concurrent MCP sessions before `initialize` is refused. */
+const DEFAULT_MAX_SESSIONS = 64;
+/** A session untouched for this long is swept the next time a new one is created. */
+const DEFAULT_SESSION_IDLE_MS = 30 * 60 * 1000;
+
 export interface HttpTransportOptions {
   port?: number;
   host?: string;
   allowedOrigins?: string[];
+  allowedHosts?: string[];
+  maxSessions?: number;
+  sessionIdleMs?: number;
 }
 
 export interface HttpTransportHandle {
@@ -28,18 +37,59 @@ export interface HttpTransportHandle {
 interface Session {
   transport: StreamableHTTPServerTransport;
   server: Server;
+  lastSeenAt: number;
+}
+
+interface AppConfig {
+  origins: string[];
+  hosts: string[];
+  maxSessions: number;
+  sessionIdleMs: number;
 }
 
 function jsonRpcError(res: Response, status: number, message: string): void {
   res.status(status).json({ jsonrpc: "2.0", error: { code: -32000, message }, id: null });
 }
 
-function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
+/**
+ * DNS-rebinding guard. Rejects any request whose `Host` header names a hostname outside
+ * the allowlist, before it reaches a route. The SDK transport carries an `allowedHosts`
+ * option for this but marks it deprecated in favour of exactly this — external
+ * middleware — so the check sits here beside `cors`, the other browser-facing guard.
+ * Port is stripped: the allowlist matches names, not names-and-ports (see `env.allowedHosts`).
+ */
+function hostGuard(hosts: string[]) {
+  const allowed = new Set(hosts.map((host) => host.toLowerCase()));
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const header = req.headers.host;
+    const hostname = header?.replace(/:\d+$/, "").toLowerCase();
+    if (hostname === undefined || !allowed.has(hostname)) {
+      jsonRpcError(res, 403, `Host not allowed: ${header ?? "(none)"}`);
+      return;
+    }
+    next();
+  };
+}
+
+/** Closes and drops every session idle longer than `idleMs`. Called on each new `initialize`. */
+function sweepIdleSessions(sessions: Map<string, Session>, idleMs: number, now: number): void {
+  for (const [id, session] of sessions) {
+    if (now - session.lastSeenAt > idleMs) {
+      void session.transport.close();
+      void session.server.close();
+      sessions.delete(id);
+    }
+  }
+}
+
+function buildApp(sessions: Map<string, Session>, config: AppConfig): Express {
   const app = express();
+
+  app.use(hostGuard(config.hosts));
 
   app.use(
     cors({
-      origin: origins,
+      origin: config.origins,
       methods: ["GET", "POST", "DELETE", "OPTIONS"],
       allowedHeaders: [
         "content-type",
@@ -86,6 +136,7 @@ function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
         jsonRpcError(res, 404, `Unknown session: ${sessionId}`);
         return;
       }
+      session.lastSeenAt = Date.now();
       await session.transport.handleRequest(req, res, req.body);
       return;
     }
@@ -95,11 +146,20 @@ function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
       return;
     }
 
+    // Bound the map at exactly the moment it would otherwise grow: sweep the idle
+    // entries first, then refuse if the live set is still at the ceiling. A live
+    // session is never evicted to admit a new one.
+    sweepIdleSessions(sessions, config.sessionIdleMs, Date.now());
+    if (sessions.size >= config.maxSessions) {
+      jsonRpcError(res, 503, `Session limit reached (${config.maxSessions}); try again later`);
+      return;
+    }
+
     const server = createServer();
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: randomUUID,
       onsessioninitialized: (id) => {
-        sessions.set(id, { transport, server });
+        sessions.set(id, { transport, server, lastSeenAt: Date.now() });
       },
     });
     transport.onclose = () => {
@@ -119,6 +179,7 @@ function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
       jsonRpcError(res, 404, "Unknown session");
       return;
     }
+    session.lastSeenAt = Date.now();
     await session.transport.handleRequest(req, res);
   });
 
@@ -128,6 +189,7 @@ function buildApp(sessions: Map<string, Session>, origins: string[]): Express {
       jsonRpcError(res, 404, "Unknown session");
       return;
     }
+    session.lastSeenAt = Date.now();
     await session.transport.handleRequest(req, res);
   });
 
@@ -157,10 +219,15 @@ export async function startHttpTransport(
 ): Promise<HttpTransportHandle> {
   const port = options.port ?? httpPort();
   const host = options.host ?? httpHost();
-  const origins = options.allowedOrigins ?? defaultAllowedOrigins();
+  const config: AppConfig = {
+    origins: options.allowedOrigins ?? defaultAllowedOrigins(),
+    hosts: options.allowedHosts ?? defaultAllowedHosts(),
+    maxSessions: options.maxSessions ?? DEFAULT_MAX_SESSIONS,
+    sessionIdleMs: options.sessionIdleMs ?? DEFAULT_SESSION_IDLE_MS,
+  };
 
   const sessions = new Map<string, Session>();
-  const app = buildApp(sessions, origins);
+  const app = buildApp(sessions, config);
 
   const httpServer = await new Promise<ReturnType<Express["listen"]>>((resolve, reject) => {
     const server = app.listen(port, host);

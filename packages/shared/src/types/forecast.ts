@@ -56,6 +56,12 @@ export const ForecastSchema = z.object({
   truncated: z.boolean(),
   /** Plain-language reason for the clamp, present only when `truncated`. */
   truncationReason: z.string().optional(),
+  /**
+   * Dates inside `coveredRange` that Open-Meteo returned no usable hourly data for.
+   * Empty on a clean forecast. A gap here degrades the brief's `sources.openMeteo` to
+   * `partial` — it does not discard the days that did come back.
+   */
+  missingDates: z.array(z.string().date()).default([]),
   days: z.array(DailyForecastSchema).min(1),
 });
 

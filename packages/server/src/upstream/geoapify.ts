@@ -17,7 +17,14 @@ const PLACES_PATH = "/v2/places";
 
 export const GEOAPIFY_PLACES_PER_CREDIT = 20;
 
-/** Credits a Places response consumed: 0 on cache hit, else ceil(places / 20). */
+/**
+ * Credits a Places response consumed: 0 on a cache hit, else `ceil(returnedCount / 20)`.
+ *
+ * `returnedCount` is the number of features Geoapify put on the wire, counted *before*
+ * `normaliseFeature` drops any that are missing an id, a name or coordinates. Geoapify
+ * bills on what it returned, not on what survived normalisation — billing from the
+ * post-filter `places.length` under-reports every time a feature is dropped.
+ */
 export const creditsForResponse = (cacheHit: boolean, returnedCount: number): number =>
   cacheHit ? 0 : Math.ceil(returnedCount / GEOAPIFY_PLACES_PER_CREDIT);
 
@@ -66,7 +73,12 @@ export interface SearchPlacesInput {
 export interface SearchPlacesResult {
   readonly places: readonly PointOfInterest[];
   readonly meta: RequestMeta;
-  /** Geoapify credits this request consumed — 0 on a cache hit, else ceil(places / 20). */
+  /**
+   * Feature count Geoapify returned, before normalisation dropped any. This is the
+   * number `credits` is billed on — `places.length` can be lower.
+   */
+  readonly returnedCount: number;
+  /** Geoapify credits this request consumed — 0 on a cache hit, else ceil(returnedCount / 20). */
   readonly credits: number;
 }
 
@@ -186,11 +198,17 @@ export async function searchPlaces(
   }
 
   try {
+    // Billed count is the raw feature count Geoapify sent, taken before normalisation
+    // drops any. `response.data` is `unknown` at runtime — `parseResponseBody` hands back
+    // raw text for a non-JSON body — so guard the shape rather than trusting the generic.
+    const rawBody = response.data as { features?: unknown } | null | undefined;
+    const returnedCount = Array.isArray(rawBody?.features) ? rawBody.features.length : 0;
     const places = normalisePlacesResponse(response.data, categories[0]);
     return {
       places,
+      returnedCount,
       meta: response.meta,
-      credits: creditsForResponse(response.meta.cacheHit, places.length),
+      credits: creditsForResponse(response.meta.cacheHit, returnedCount),
     };
   } catch {
     return internalError("Failed to normalise Geoapify places response");

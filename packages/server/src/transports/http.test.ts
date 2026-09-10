@@ -1,3 +1,4 @@
+import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -30,6 +31,51 @@ vi.mock("../upstream/geoapify.js", async (importOriginal) => {
 
 const ALLOWED_ORIGIN = "http://localhost:5173";
 const DISALLOWED_ORIGIN = "http://evil.example.com";
+
+const INITIALIZE_BODY = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "raw", version: "0" },
+  },
+});
+
+/** Raw request with a caller-set Host header — `fetch` silently drops Host overrides. */
+const rawRequest = (
+  port: number,
+  {
+    method = "POST",
+    path = "/mcp",
+    host,
+    body,
+  }: { method?: string; path?: string; host: string; body?: string },
+): Promise<{ status: number }> =>
+  new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        path,
+        method,
+        headers: {
+          Host: host,
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          ...(body ? { "content-length": Buffer.byteLength(body) } : {}),
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
+      },
+    );
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
 
 describe("startHttpTransport", () => {
   let handle: HttpTransportHandle;
@@ -159,7 +205,77 @@ describe("startHttpTransport", () => {
     });
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
   });
+
+  it("rejects a request whose Host header is off the allowlist with 403", async () => {
+    const rebound = await rawRequest(handle.port, {
+      host: "evil.example.com",
+      body: INITIALIZE_BODY,
+    });
+    expect(rebound.status).toBe(403);
+
+    // The same request against a loopback Host is not blocked by the guard.
+    const loopback = await rawRequest(handle.port, {
+      host: `127.0.0.1:${handle.port}`,
+      body: INITIALIZE_BODY,
+    });
+    expect(loopback.status).not.toBe(403);
+  });
 });
+
+describe("startHttpTransport — session bounds", () => {
+  let handle: HttpTransportHandle;
+
+  afterEach(async () => {
+    await handle.close();
+  });
+
+  it("refuses a new initialize once the session ceiling is reached", async () => {
+    handle = await startHttpTransport({ port: 0, host: "127.0.0.1", maxSessions: 1 });
+
+    const first = await connectRawInitialize(handle.port);
+    expect(first.status).toBe(200);
+
+    const second = await connectRawInitialize(handle.port);
+    expect(second.status).toBe(503);
+  });
+
+  it("sweeps an idle session on the next initialize, and its id then 404s", async () => {
+    handle = await startHttpTransport({
+      port: 0,
+      host: "127.0.0.1",
+      maxSessions: 8,
+      sessionIdleMs: 1,
+    });
+    const baseUrl = `http://127.0.0.1:${handle.port}`;
+
+    const client = new Client({ name: "idle-victim", version: "0" });
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`));
+    await client.connect(transport);
+    const staleId = transport.sessionId as string;
+    expect(staleId).toBeDefined();
+
+    // Let the 1 ms idle window lapse, then trigger a sweep with a fresh initialize.
+    await new Promise((r) => setTimeout(r, 10));
+    await connectRawInitialize(handle.port);
+
+    const reused = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-session-id": staleId,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/list" }),
+    });
+    expect(reused.status).toBe(404);
+
+    await transport.close();
+  });
+});
+
+/** Fires a bare initialize POST and resolves its status — used to fill session slots. */
+const connectRawInitialize = (port: number): Promise<{ status: number }> =>
+  rawRequest(port, { host: `127.0.0.1:${port}`, body: INITIALIZE_BODY });
 
 describe("HTTP and in-memory transports produce identical CallToolResults", () => {
   let httpHandle: HttpTransportHandle;

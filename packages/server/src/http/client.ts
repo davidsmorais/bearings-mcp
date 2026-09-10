@@ -6,7 +6,7 @@ import { HOST_CONFIG } from "./config.js";
 import { type FaultKind, faultFor } from "./faults.js";
 import { mapHttpError } from "./mapError.js";
 import { abortError, type Clock, createRateLimiter, type RateLimiter } from "./rateLimiter.js";
-import { computeBackoffDelay, isRetryable } from "./retry.js";
+import { computeBackoffDelay, isRetryable, isTerminalClassification } from "./retry.js";
 import { createAttemptTimeout } from "./timeout.js";
 import type { HostId, HttpResult, RequestMeta } from "./types.js";
 
@@ -223,7 +223,19 @@ export function createHttpCore(deps: HttpCoreDeps = {}): HttpCore {
           return { ok: true, data, meta };
         }
 
-        if (isRetryable(response.status) && attempt < config.retry.maxAttempts) {
+        // A host classifier gets first look: a Geoapify 429 that carries a daily-quota
+        // message is `QUOTA_EXCEEDED`, which does not recover within a backoff window, so
+        // it must break the loop here rather than be retried as a plain rate limit. The
+        // fall-through below hands the same status and body to `mapHttpError`, which runs
+        // the classifier again — so the returned `ToolError` is identical to a retried
+        // one, only `attempts` differs.
+        const classified = config.classifyStatus?.(response.status, lastBody);
+
+        if (
+          isRetryable(response.status) &&
+          !isTerminalClassification(classified) &&
+          attempt < config.retry.maxAttempts
+        ) {
           const delayMs = computeBackoffDelay({
             attempt,
             baseDelayMs: config.retry.baseDelayMs,

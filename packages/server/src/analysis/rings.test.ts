@@ -1,6 +1,6 @@
 import type { PointOfInterest } from "@bearings/shared";
 import { describe, expect, it } from "vitest";
-import { partitionByRing, ringsWithin, WALKING_RADII_M } from "./rings.js";
+import { partitionByRing, ratingRing, ringsWithin, WALKING_RADII_M } from "./rings.js";
 
 const poi = (id: string, distanceM?: number): PointOfInterest => ({
   id,
@@ -71,5 +71,36 @@ describe("partitionByRing", () => {
     const result = partitionByRing([poi("a", 40), poi("b")], [100]);
     expect(result.rings).toEqual([{ radiusM: 100, count: 2 }]);
     expect(result.missingDistance).toBe(1);
+  });
+});
+
+describe("ratingRing", () => {
+  it("returns the 500 m ring when the breakdown has one", () => {
+    expect(
+      ratingRing(
+        [
+          { radiusM: 250, count: 4 },
+          { radiusM: 500, count: 9 },
+          { radiusM: 1000, count: 12 },
+        ],
+        1000,
+      ),
+    ).toEqual({ radiusM: 500, count: 9 });
+  });
+
+  it("falls back to the outer ring when there is no 500 m entry", () => {
+    expect(
+      ratingRing(
+        [
+          { radiusM: 250, count: 3 },
+          { radiusM: 400, count: 5 },
+        ],
+        400,
+      ),
+    ).toEqual({ radiusM: 400, count: 5 });
+  });
+
+  it("returns the sole ring for a single-entry breakdown", () => {
+    expect(ratingRing([{ radiusM: 100, count: 2 }], 100)).toEqual({ radiusM: 100, count: 2 });
   });
 });

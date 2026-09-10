@@ -69,7 +69,18 @@
 *The answer to "why is this many venues `high`". `analyse_neighbourhood` groups the 7-value
 `PoiCategorySchema` into six domains, queries Geoapify once per domain at `input.radiusM`,
 partitions the returned POIs into walking rings client-side, and rates each domain by
-**venue density in venues/km²** — not raw count, so a rating is comparable across radii.*
+**venue density in venues/km² at the 500 m ring** — the `CALIBRATION_RADIUS_M` walk.*
+
+**Rating radius (corrected 2026-09-10, DMS review).** Density normalises for area but POI
+density genuinely falls off with radius, and the fixed `limitPerCategory` cap makes it
+collapse: 20 venues is 25.5/km² at 500 m and 1.6/km² at 2000 m for the *same*
+neighbourhood, so classifying a wide-radius sample against 500 m thresholds returned
+`low` for a dense centre. `classifyDomain` now reads the rating off the ring at
+`CALIBRATION_RADIUS_M` (`analysis/thresholds.ts`) regardless of `radiusM` — or, when
+`radiusM < 500`, the request's outer ring, which is tighter and so higher-density (the
+safe direction). The ring used is reported as `DomainRating.ratingRadiusM`; `radiusM` and
+`count` stay in the payload as the requested width and the total within it. Earlier text
+here claimed a rating was "comparable across radii" — it was not, and that was the bug.
 
 **Walking-ring ladder** — `WALKING_RADII_M = [250, 500, 1000]` m (`analysis/rings.ts`),
 ≈ 3 / 6 / 12 min walk. `ringsWithin(radiusM)` keeps the ladder entries `≤ radiusM` and
@@ -80,16 +91,21 @@ radius; inner rings cost no extra credits (Geoapify returns `distance` per featu
 **`countCapped`** — `limitPerCategory` defaults to **20** (1 Geoapify credit per domain;
 the `.max(100)`→`.max(20)` tightening was the signed-off schema change of 2026-09-08).
 The ceiling itself is now detail-gated at **40** for `detail: "full"` (`DMS-501`, see
-below) — `brief` stays capped at 20. When a domain returns the full `limitPerCategory`, its
-`DomainRating.countCapped` is `true`, `densityPerKm2` is a **lower bound**, and the
-classifier may only ever *raise* such a rating — a later uncapped call moves density up,
-never down, and the buckets are monotonic in density.
+below) — `brief` stays capped at 20. `DomainRating.countCapped` is now scoped to the
+**rating ring**: `true` only when the whole response was capped *and* every returned POI
+fell inside the rating ring, so that ring's count — hence its density and rating — is a
+floor. When the capped response also has POIs beyond the rating ring, the sub-ring slice
+was not truncated by the limit, so the flag clears. (Leans on Geoapify `bias=proximity`
+returning near POIs first — a ranking preference, not a strict sort, so on equal counts
+the flag stays `true`.) The classifier still only ever *raises* a floored rating — a later
+uncapped call moves density up, never down, and the buckets are monotonic.
 
 **Thresholds** — the single named-constant block is `DENSITY_THRESHOLDS` in
-`analysis/thresholds.ts` (root Invariant 7); no density number lives anywhere else.
-Per-domain because a walkable dining scene and a walkable museum scene are different
-densities. `none` is count 0; otherwise `density >= high` → `high`, `>= medium` →
-`medium`, else `low`. `high` for every domain sits at or below **25.5 venues/km²** — the
+`analysis/thresholds.ts` (root Invariant 7), alongside `CALIBRATION_RADIUS_M`; no density
+or rating-radius number lives anywhere else. Per-domain because a walkable dining scene
+and a walkable museum scene are different densities. `none` is a **zero rating-ring
+count**; otherwise `density >= high` → `high`, `>= medium` → `medium`, else `low`, all read
+at the rating ring. `high` for every domain sits at or below **25.5 venues/km²** — the
 density a domain capped at 20 places still reports within a 500 m ring — so a genuinely
 dense but count-capped domain is never under-rated.
 
@@ -109,6 +125,8 @@ list). The committed fixture `packages/server/test/fixtures/geoapify-places.json
 likewise hand-built (synthetic `place_id`s). Re-calibrate against two named coordinates
 per domain — one dense, one quiet, at `radiusM: 500` — once a live run is possible; the
 classifier's "capped ratings only rise" guarantee holds regardless of the exact numbers.
+Because the rating is now always read at 500 m, `radiusM` no longer needs its own
+per-radius calibration — a wider request only changes the sample and the ring breakdown.
 
 ---
 

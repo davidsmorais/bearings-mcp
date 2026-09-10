@@ -15,12 +15,19 @@ const RingCountSchema = z.object({
 
 /**
  * One domain's density verdict with the evidence that produced it (root Invariant 6).
- * Every field is required — a rating without its count or radius must fail validation.
+ * Every field is required — a rating without its evidence must fail validation.
+ *
+ * `radiusM` is the radius the caller requested — the width of the sample and the span
+ * `count` is measured over. `ratingRadiusM` is the walking ring `rating` was actually
+ * read at: the 500 m calibration ring, or the request's outer ring when `radiusM` is
+ * under 500 m. They differ whenever `radiusM > 500`, and `densityPerKm2` is always
+ * measured at `ratingRadiusM`.
  */
 export const DomainRatingSchema = z.object({
   rating: z.enum(RATING_LEVELS),
   count: z.number().int().min(0),
   radiusM: z.number().int(),
+  ratingRadiusM: z.number().int(),
   densityPerKm2: z.number().min(0),
   countCapped: z.boolean(),
   rings: z.array(RingCountSchema).min(1),

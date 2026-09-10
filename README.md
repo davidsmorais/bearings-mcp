@@ -36,7 +36,7 @@ Only `GEOAPIFY_API_KEY` is required — free at [geoapify.com](https://www.geoap
 
 At boot the server loads the nearest `.env`, searching up from the working directory and then from its own location — so `node packages/server/dist/cli.js` from the repo root and a Claude Desktop spawn with an unrelated cwd both find the same file. Variables already set in the real environment win over the file.
 
-Optional env: `BEARINGS_HTTP_PORT` (default `3000`), `BEARINGS_HTTP_HOST` (default `127.0.0.1`), `BEARINGS_ALLOWED_ORIGINS` (default Vite dev server).
+Optional env: `BEARINGS_HTTP_PORT` (default `3000`), `BEARINGS_HTTP_HOST` (default `127.0.0.1`), `BEARINGS_ALLOWED_ORIGINS` (default Vite dev server), `BEARINGS_ALLOWED_HOSTS` (default loopback — the `Host`-header allowlist that guards against DNS rebinding).
 
 ```bash
 pnpm start        # stdio (default) — Claude Desktop, Cursor, Claude Code
@@ -61,7 +61,7 @@ SID=$(curl -s -D - http://127.0.0.1:3000/mcp \
   -H "content-type: application/json" \
   -H "accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
-  | grep -i mcp-session-id | cut -d' ' -f2 | tr -d '\r')
+  | grep -i '^mcp-session-id:' | cut -d' ' -f2 | tr -d '\r')
 
 curl http://127.0.0.1:3000/mcp \
   -H "content-type: application/json" \
@@ -150,8 +150,8 @@ Open Claude Code in the repo and ask naturally, or invoke tools directly. Tool n
 
 - `mcp__bearings__echo` — diagnostic, proves wiring: `{"message": "hi"}`
 - `mcp__bearings__resolve_destination` — `{"query": "Alfama, Lisbon"}`
-- `mcp__bearings__get_destination_brief` — needs a `Location` from the previous call plus `stay: {checkIn, checkOut}`
-- `mcp__bearings__analyse_neighbourhood` — `{"coordinates": {"latitude": 38.71, "longitude": -9.14}, "radiusM": 500}`
+- `mcp__bearings__get_destination_brief` — takes a `Location` (from a previous `resolve_destination`) plus a stay: `{"location": {"name": "Lisbon", "coordinates": {"lat": 38.72, "lon": -9.14}, "countryCode": "PT"}, "stay": {"start": "2026-05-01", "end": "2026-05-04"}}`
+- `mcp__bearings__analyse_neighbourhood` — `{"coordinates": {"lat": 38.71, "lon": -9.14}, "radiusM": 500}`
 
 Example prompts to try:
 
@@ -176,7 +176,7 @@ That's the `resolve_destination → get_destination_brief → analyse_neighbourh
 ![analyse_neighbourhood at 38.7115,-9.1449 — six domains rated by density, with nightlife honestly reported as unavailable rather than zero](./docs/images/bearings-neighboorhood%20check.png)
 ### 5. Project-scoped alternative (`.mcp.json`)
 
-Instead of `claude mcp add`, you can commit a project config at the repo root:
+This repo already commits a `.mcp.json` at the root with a `bearings` entry, so `claude mcp add` is optional — Claude Code auto-discovers the file and prompts for approval on next launch. The committed entry is keyless and relies on `.env`:
 
 ```json
 {
@@ -184,15 +184,13 @@ Instead of `claude mcp add`, you can commit a project config at the repo root:
     "bearings": {
       "command": "node",
       "args": ["./packages/server/dist/cli.js"],
-      "env": {
-        "GEOAPIFY_API_KEY": "your_key_here"
-      }
+      "type": "stdio"
     }
   }
 }
 ```
 
-Claude Code auto-discovers `.mcp.json` and prompts for approval on next launch. Prefer this when you want the setup checked into the repo (without the key — use `${GEOAPIFY_API_KEY}` or rely on the `.env` file and omit `env` entirely).
+To pass the key inline instead of via `.env`, add `"env": { "GEOAPIFY_API_KEY": "${GEOAPIFY_API_KEY}" }` to that entry.
 
 ### 6. Remove when done
 
@@ -281,14 +279,14 @@ Key invariants (see `AGENTS.md`):
 |---|---|---:|---:|---:|---:|---:|
 | `resolve_destination` | brief | 171 | 51 | 102 | −54% | — |
 | `resolve_destination` | full | 329 | 111 | 222 | — | — |
-| `get_destination_brief` | brief | 689 | 233 | 466 | −19% | — |
-| `get_destination_brief` | full | 841 | 286 | 572 | — | — |
-| `analyse_neighbourhood` | brief | 1403 | 468 | 936 | −68% | 6 |
-| `analyse_neighbourhood` | full | 4200 | 1451 | 2902 | — | 6 |
+| `get_destination_brief` | brief | 707 | 237 | 474 | −18% | — |
+| `get_destination_brief` | full | 859 | 290 | 580 | — | — |
+| `analyse_neighbourhood` | brief | 1523 | 504 | 1008 | −66% | 6 |
+| `analyse_neighbourhood` | full | 4320 | 1487 | 2974 | — | 6 |
 
 Worst-case is `contentTokens × 2` — the MCP spec serialises into both `content[0].text` and `structuredContent`. Tokenizer is `o200k_base` (GPT BPE, not Claude's) — good for comparing shapes, not a bill. Six domains at the default limit is six credits; `brief`/`full` is a token lever here, not a credit lever.
 
-**Density thresholds** (`analysis/thresholds.ts`) — rated by **venues/km²**, per domain, so a 250 m and 1000 m ring are comparable. Rings at 250 / 500 / 1000 m (~3/6/12 min walk) are partitioned client-side from Geoapify's `distance` at no extra credit.
+**Density thresholds** (`analysis/thresholds.ts`) — rated by **venues/km² at the 500 m ring**, per domain. The rating is always read at that ring (`ratingRadiusM` in the response), so widening `radiusM` grows the sample and the ring breakdown but never dilutes the verdict. Rings at 250 / 500 / 1000 m (~3/6/12 min walk) are partitioned client-side from Geoapify's `distance` at no extra credit.
 
 ---
 
@@ -299,8 +297,9 @@ Four free public APIs, four different ways to get cut off mid-request. Each has 
 | Risk | Trigger | Mitigation |
 |---|---|---|
 | **Nominatim IP ban** | >1 req/sec; missing `User-Agent` | Token-bucket at 1 req/sec; descriptive `User-Agent`; 30-day cache |
-| **Geoapify daily cap** | 3,000 credits/day exhausted | `limitPerCategory` capped at 20 for `brief`; `detail` gates the 40 ceiling; 7-day cache; surfaces as `QUOTA_EXCEEDED` |
+| **Geoapify daily cap** | 3,000 credits/day exhausted | `limitPerCategory` capped at 20 for `brief`; `detail` gates the 40 ceiling; 7-day cache; classified as `QUOTA_EXCEEDED` on the first response and *not* retried (it will not recover in a backoff window) |
 | **Open-Meteo horizon** | Stay beyond ~16 days | Range outside → `NOT_FOUND` with latest available date; partly outside → clamped with `truncated: true` |
+| **Open-Meteo data gap** | One or more days return no usable hourly series | The days that came back are kept; the gap is listed in `missingDates` and `sources.openMeteo` drops to `partial`. Only an all-empty range is an error |
 | **Nager.Date year boundary** | Stay spanning Dec 31 | Every calendar year in the window is queried in parallel and merged |
 | **Any upstream down** | Timeout / outage | `get_destination_brief` returns the surviving upstream with `sources.<x>.status: "unavailable"`; both down → the more severe `ToolError` |
 
@@ -309,7 +308,7 @@ Four free public APIs, four different ways to get cut off mid-request. Each has 
 ## Testing
 
 ```bash
-pnpm test        # 476 tests across the three packages — offline, deterministic
+pnpm test        # 538 tests across the three packages — offline, deterministic
 pnpm typecheck   # tsc --noEmit, every package
 pnpm knip        # unused files, exports and dependencies
 pnpm lint        # biome check . — lint + format
@@ -333,6 +332,10 @@ Built with heavy AI assistance, said plainly — this is a submission for an AI 
 - **Planning → tickets → execution.** Architecture was planned in Claude, then broken into Linear tickets (`DMS-###`). Foundations first (shared schemas, HTTP core, walking-skeleton server), then feature tickets each in its own git worktree via [Orca](https://www.onorca.dev/). Some upstream clients landed in parallel.
 - **Agent roster** (`AGENTS.md`): `founder` (architecture), `planner` (plans), `orchestrator` (battle plans), `server-dev` (handlers/upstreams/core), `web-dev` (inspector), `reviewer` (invariants/secrets), `qa` (edge cases), `costs-cleaner` (credits/tokens).
 - **Review:** invariants are codified and gated in CI (`pnpm lint` / `typecheck` / `knip` / `test`); `reviewer` and `qa` agents pass before a ticket is done; the author reads every AI-generated diff before commit.
+
+### What's committed on purpose
+
+`.mcp.json`'s dev-tooling servers, the `.agents/` and `.claude/` skill and agent rosters, and `AGENTS.md` / `MEMORY.md` / `DECISIONS.md` are all checked in deliberately. This is a submission for an AI agents platform, so the working AI-development setup — the personas, the codified invariants, the decision log — is part of what's being shown, not clutter to scrub before sending. Read them as evidence of how the code got built.
 
 ---
 

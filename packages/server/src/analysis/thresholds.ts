@@ -10,8 +10,19 @@ const RATING_LEVELS = ["none", "low", "medium", "high"] as const;
 export type RatingLevel = (typeof RATING_LEVELS)[number];
 
 /**
- * Venue-density cutoffs in venues/km², one pair per domain, read at the 500 m
- * walking ring. This is the single named-constant block for the analysis layer
+ * The one radius these thresholds are valid at. `classifyDomain` reads the rating off
+ * the ring at this radius — the ~6-minute walk — no matter how wide `radiusM` was: the
+ * cutoffs below are calibrated here and nowhere else, and POI density genuinely falls
+ * off with radius (a 20-place sample saturates 25.5 venues/km² at 500 m and reports 1.6
+ * at 2000 m for the same neighbourhood). A request with `radiusM` under this value has
+ * no ring here, so the classifier falls back to that request's outer ring — tighter than
+ * 500 m, so a higher density for the same sample, which is the safe direction.
+ */
+export const CALIBRATION_RADIUS_M = 500;
+
+/**
+ * Venue-density cutoffs in venues/km², one pair per domain, read at
+ * `CALIBRATION_RADIUS_M`. This is the single named-constant block for the analysis layer
  * (root Invariant 7) — no other file carries a density number.
  *
  * Per-domain because a walkable dining scene and a walkable museum scene are
