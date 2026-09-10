@@ -250,12 +250,23 @@ export async function fetchForecast(
   });
 
   const days: DailyForecast[] = [];
+  const missingDates: string[] = [];
   for (let date = covered.start; date <= covered.end; date = addDays(date, 1)) {
     const bucket = buckets.get(date);
     if (bucket === undefined || bucket.temps.length === 0) {
-      return internalError(`Open-Meteo forecast response has no hourly data for ${date}`);
+      // One unusable day is a gap, not a failure — record it and keep the rest. The
+      // brief surfaces it as sources.openMeteo: "partial". Only a forecast with nothing
+      // usable at all is an error.
+      missingDates.push(date);
+      continue;
     }
     days.push(summariseDay(date, bucket));
+  }
+
+  if (days.length === 0) {
+    return internalError(
+      `Open-Meteo returned no usable hourly data for any day in ${covered.start}..${covered.end}`,
+    );
   }
 
   const forecast: Forecast = {
@@ -266,6 +277,7 @@ export async function fetchForecast(
     coveredRange: { start: covered.start, end: covered.end },
     truncated: covered.truncated,
     ...(covered.reason !== undefined ? { truncationReason: covered.reason } : {}),
+    missingDates,
     days,
   };
 

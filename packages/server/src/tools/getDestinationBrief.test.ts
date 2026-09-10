@@ -371,6 +371,58 @@ describe("composeDestinationBrief — truncated forecast", () => {
   });
 });
 
+describe("composeDestinationBrief — partial forecast", () => {
+  /** A synthetic payload with every hourly reading for `blankDate` nulled out. */
+  const forecastWithGap = (start: string, end: string, blankDate: string) => {
+    const payload = synthForecast(start, end);
+    payload.hourly.time.forEach((stamp, index) => {
+      if (stamp.startsWith(blankDate)) {
+        (payload.hourly.temperature_2m as (number | null)[])[index] = null;
+        (payload.hourly.precipitation as (number | null)[])[index] = null;
+      }
+    });
+    return payload;
+  };
+
+  it("surfaces a data gap as sources.openMeteo partial with the dates in the note", async () => {
+    const { core } = coreWith({
+      openMeteo: () => jsonResponse(forecastWithGap("2026-09-08", "2026-09-10", "2026-09-09")),
+      nager: nagerYears({ "2026": () => jsonResponse(nagerFixture.publicHolidays2026AT) }),
+    });
+
+    const result = await composeDestinationBrief(
+      buildInput({ stay: { start: "2026-09-08", end: "2026-09-10" }, detail: "full" }),
+      { core, now: at("2026-09-08") },
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    expect(result.forecast?.days.map((day) => day.date)).toEqual(["2026-09-08", "2026-09-10"]);
+    expect(result.sources.openMeteo.status).toBe("partial");
+    expect(result.sources.openMeteo.note).toContain("2026-09-09");
+  });
+
+  it("reports partial, not ok, when the forecast is both clamped and gapped, noting both", async () => {
+    const { core } = coreWith({
+      // Range runs past the ~16-day horizon (clamp) and 2026-09-22 is nulled (gap).
+      openMeteo: () => jsonResponse(forecastWithGap("2026-09-08", "2026-10-10", "2026-09-22")),
+      nager: nagerYears({ "2026": () => jsonResponse(nagerFixture.publicHolidays2026AT) }),
+    });
+
+    const result = await composeDestinationBrief(
+      buildInput({ stay: { start: "2026-09-20", end: "2026-10-05" }, detail: "full" }),
+      { core, now: at("2026-09-08") },
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    expect(result.forecast?.truncated).toBe(true);
+    expect(result.sources.openMeteo.status).toBe("partial");
+    expect(result.sources.openMeteo.note).toContain("horizon");
+    expect(result.sources.openMeteo.note).toContain("2026-09-22");
+  });
+});
+
 describe("composeDestinationBrief — brief vs full projection", () => {
   const scenario = () =>
     coreWith({

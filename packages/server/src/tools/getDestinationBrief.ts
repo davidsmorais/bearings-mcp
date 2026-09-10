@@ -35,12 +35,21 @@ function mapForecast(result: Forecast | ToolError): {
   if (isToolError(result)) {
     return { openMeteo: { status: "unavailable", error: result } };
   }
+
+  const notes: string[] = [];
+  // A clamp is expected behaviour and stays "ok"; a data gap is not, and wins.
+  if (result.truncationReason !== undefined) {
+    notes.push(result.truncationReason);
+  }
+  if (result.missingDates.length > 0) {
+    notes.push(`no usable forecast data for ${result.missingDates.join(", ")}`);
+  }
+
   return {
     forecast: result,
     openMeteo: {
-      status: "ok",
-      // A truncated-but-usable forecast is still "ok"; the clamp reason is the note.
-      ...(result.truncationReason !== undefined ? { note: result.truncationReason } : {}),
+      status: result.missingDates.length > 0 ? "partial" : "ok",
+      ...(notes.length > 0 ? { note: notes.join("; ") } : {}),
     },
   };
 }
