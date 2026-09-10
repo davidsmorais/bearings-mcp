@@ -17,6 +17,11 @@ dist/
 .code-review-graph/
 # AI
 graphify-out/
+# Per-developer harness state. Must stay listed here, not only in a global gitignore:
+# biome.json sets vcs.useIgnoreFile, and biome reads this file — not the user's global
+# one — so an unlisted path here is a path `pnpm lint` checks and fails on locally while
+# CI (which never sees the untracked file) stays green.
+.claude/settings.local.json
 
 # Local-only manual verification notes (not shipped)
 docs/manual-checks.md
