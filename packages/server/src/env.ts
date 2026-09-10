@@ -115,6 +115,36 @@ export function allowedOrigins(): string[] {
 }
 
 /**
+ * Loopback hostnames the HTTP transport always accepts in the `Host` header. `[::1]`
+ * is the bracketed form a client sends for IPv6 loopback; the bare `::1` never appears
+ * in a Host header.
+ */
+const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
+
+/**
+ * Hostnames the HTTP transport's `Host` header is checked against — the DNS-rebinding
+ * guard. A browser page served from an attacker domain that has rebound its DNS to
+ * 127.0.0.1 still sends its own hostname here, so anything outside this set is refused
+ * before it reaches a tool.
+ *
+ * The port is deliberately not matched: the security property is about the name, and
+ * the README's curl walkthrough (`:3000`), the Vite dev proxy and a direct browser hit
+ * all carry a different port against the same loopback name. Defaults to loopback plus
+ * whatever `BEARINGS_HTTP_HOST` resolves to; override with `BEARINGS_ALLOWED_HOSTS`
+ * (comma-separated) when binding a real hostname.
+ */
+export function allowedHosts(): string[] {
+  const raw = process.env.BEARINGS_ALLOWED_HOSTS;
+  if (raw?.trim()) {
+    return raw
+      .split(",")
+      .map((host) => host.trim())
+      .filter((host) => host.length > 0);
+  }
+  return [...new Set([...LOOPBACK_HOSTS, httpHost()])];
+}
+
+/**
  * Whether the dev-only fault-injection seam is armed (`BEARINGS_FAULT_INJECTION`).
  *
  * Off unless the variable is set to `1` or `true`. When off, the HTTP core never consults
