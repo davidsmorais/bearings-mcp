@@ -135,6 +135,7 @@ export async function analyseNeighbourhood(
     const count = places.length;
     const rating = classifyDomain(domain, count, input.radiusM, ringCounts, {
       countCapped: count >= input.limitPerCategory,
+      missingDistance,
     });
 
     domains[domain] = {
@@ -148,7 +149,9 @@ export async function analyseNeighbourhood(
     if (missingDistance > 0) {
       sources[domain] = {
         status: "partial",
-        note: `${missingDistance} place(s) had no distance and were counted only at the outer ring`,
+        note:
+          `${missingDistance} place(s) had no distance; they are within radiusM but ` +
+          `could not be placed in an inner ring (rating read at ${rating.ratingRadiusM}m)`,
       };
     } else {
       sources[domain] = { status: "ok" };

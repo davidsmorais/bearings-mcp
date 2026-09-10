@@ -59,27 +59,55 @@ const ratingForDensity = (
  * distance sort, so the inference is strong but not guaranteed — when the counts are
  * equal the flag stays `true`, the conservative reading.
  *
- * Nothing here lowers a rating: a later uncapped call moves density up, the buckets are
- * monotonic in density, so it can only raise the rating. The guarantee is a property of
- * the ordering, not a fudge applied to the number.
+ * `missingDistance` is POIs that came back with no `distanceM`. They are within `radiusM`
+ * — the circle filter guarantees it — but cannot be placed in an inner ring, so
+ * `partitionByRing` counts them only at the outer ring. When the rating ring is an inner
+ * one, its count omits them: rating `none` for a domain with twenty distanceless venues
+ * is the failure this guards against. If placing every missing POI at the rating ring
+ * would not change the bucket, the rating is certain and stands. If it would, the rating
+ * ring cannot be classified honestly, so fall back to the outer ring — whose count *is*
+ * complete — and mark the result a floor.
+ *
+ * Nothing here lowers a rating below the truth: `countCapped` and the missing-distance
+ * fallback both surface a lower bound. A later fuller call moves density up, the buckets
+ * are monotonic, so it can only raise the rating.
  */
 export const classifyDomain = (
   domain: NeighbourhoodDomain,
   count: number,
   radiusM: number,
   rings: readonly RingCount[],
-  options: { readonly countCapped: boolean },
+  options: { readonly countCapped: boolean; readonly missingDistance?: number },
 ): DomainRating => {
-  const ring = ratingRing(rings, radiusM);
+  const primary = ratingRing(rings, radiusM);
+  const missing = options.missingDistance ?? 0;
+  const outer = rings[rings.length - 1] ?? primary;
+
+  // The primary ring omits the distanceless POIs. If they cannot swing the bucket, the
+  // rating is safe to read there; if they can, the outer ring is the widest one whose
+  // count is not missing anything.
+  const missingCouldSwing =
+    missing > 0 &&
+    primary.radiusM < outer.radiusM &&
+    ratingForDensity(domain, primary.count, densityPerKm2(primary.count, primary.radiusM)) !==
+      ratingForDensity(
+        domain,
+        primary.count + missing,
+        densityPerKm2(primary.count + missing, primary.radiusM),
+      );
+
+  const ring = missingCouldSwing ? outer : primary;
   const density = densityPerKm2(ring.count, ring.radiusM);
-  const ringCountCapped = options.countCapped && ring.count === count;
+  const countCapped =
+    (options.countCapped && ring.count === count) || (missingCouldSwing && missing > 0);
+
   return {
     rating: ratingForDensity(domain, ring.count, density),
     count,
     radiusM,
     ratingRadiusM: ring.radiusM,
     densityPerKm2: density,
-    countCapped: ringCountCapped,
+    countCapped,
     rings,
   };
 };

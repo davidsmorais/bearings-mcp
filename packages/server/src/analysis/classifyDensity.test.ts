@@ -64,6 +64,56 @@ describe("classifyDomain", () => {
     expect(rating.rating).toBe("high");
   });
 
+  it("does not rate a domain of distanceless POIs `none` — it rates the outer ring instead", () => {
+    // 20 POIs, all within radiusM 1000 but none carrying a distance, so partitionByRing
+    // parks them all at the outer ring. The 500 m rating ring is empty; before this fix
+    // that produced `rating: "none"` next to `count: 20`.
+    const rings: readonly RingCount[] = [
+      { radiusM: 250, count: 0 },
+      { radiusM: 500, count: 0 },
+      { radiusM: 1000, count: 20 },
+    ];
+    const rating = classifyDomain("nightlife", 20, 1000, rings, {
+      countCapped: true,
+      missingDistance: 20,
+    });
+    expect(rating.rating).not.toBe("none");
+    // Rated at the 1000 m outer ring, where the count is complete: 20 / (pi * 1^2) = 6.4.
+    expect(rating.ratingRadiusM).toBe(1000);
+    expect(rating.densityPerKm2).toBe(6.4);
+    expect(rating.rating).toBe("low");
+    // The outer-ring rating is a hard lower bound — some of those 20 may sit inside 500 m.
+    expect(rating.countCapped).toBe(true);
+  });
+
+  it("still rates at 500 m when a lone distanceless POI cannot swing the bucket", () => {
+    // 19 venues inside 500 m plus 1 with no distance. Whether that one is at 400 m or
+    // 900 m, the 500 m density (19 or 20 / area) is `high` either way, so the rating is
+    // certain and stays at the calibrated ring.
+    const rings: readonly RingCount[] = [
+      { radiusM: 250, count: 12 },
+      { radiusM: 500, count: 19 },
+      { radiusM: 1000, count: 19 },
+    ];
+    const rating = classifyDomain("nightlife", 20, 1000, rings, {
+      countCapped: true,
+      missingDistance: 1,
+    });
+    expect(rating.ratingRadiusM).toBe(500);
+    expect(rating.rating).toBe("high");
+  });
+
+  it("treats distanceless POIs as inside the ring when radiusM equals the calibration radius", () => {
+    // At radiusM 500 the outer ring is the rating ring, and a distanceless POI is known
+    // to be within it — no fallback, no uncertainty.
+    const rating = classifyDomain("nightlife", 20, 500, [{ radiusM: 500, count: 20 }], {
+      countCapped: true,
+      missingDistance: 20,
+    });
+    expect(rating.ratingRadiusM).toBe(500);
+    expect(rating.rating).toBe("high");
+  });
+
   it("clears countCapped when the rating ring holds fewer POIs than the total", () => {
     // 20 returned (capped), but only 15 within 500 m — the 500 m slice was not truncated
     // by the limit, so its count is not a floor.

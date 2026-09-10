@@ -282,6 +282,53 @@ describe("analyseNeighbourhood — all domains fail", () => {
   });
 });
 
+describe("analyseNeighbourhood — distanceless POIs", () => {
+  /** A Geoapify feature with no `distance` property at all. */
+  const makeDistanceless = (id: string) => ({
+    type: "Feature",
+    properties: {
+      name: id,
+      lat: denseUrban.lat,
+      lon: denseUrban.lon,
+      place_id: id,
+      categories: ["catering.bar"],
+    },
+    geometry: { type: "Point", coordinates: [denseUrban.lon, denseUrban.lat] },
+  });
+
+  it("rates a domain of distanceless venues off the outer ring, never `none`", async () => {
+    process.env.GEOAPIFY_API_KEY = "test-key";
+
+    const fetch = geoapifyFetch((categories) =>
+      categories?.includes("catering.bar")
+        ? jsonResponse({
+            type: "FeatureCollection",
+            features: Array.from({ length: 20 }, (_, i) => makeDistanceless(`bar-${i}`)),
+          })
+        : jsonResponse({ type: "FeatureCollection", features: [] }),
+    );
+
+    const result = await runComposition(
+      buildInput({ categories: ["nightlife"], radiusM: 1000, detail: "full" }),
+      fetch,
+    );
+
+    expect(isToolError(result)).toBe(false);
+    if (isToolError(result)) return;
+    if (result.detail !== "full") throw new Error("expected a full profile");
+
+    const nightlife = result.domains.nightlife;
+    expect(nightlife?.count).toBe(20);
+    expect(nightlife?.rating).not.toBe("none");
+    expect(nightlife?.ratingRadiusM).toBe(1000);
+    expect(nightlife?.countCapped).toBe(true);
+    // Surfaced as partial, with the note naming the ring the rating was read at.
+    expect(result.sources.nightlife?.status).toBe("partial");
+    expect(result.sources.nightlife?.note).toContain("1000m");
+    expect(NeighbourhoodProfileSchema.safeParse(result).success).toBe(true);
+  });
+});
+
 describe("analyseNeighbourhood — brief vs full", () => {
   it("drops samplePois at brief and keeps them at full with one upstream call set", async () => {
     process.env.GEOAPIFY_API_KEY = "test-key";

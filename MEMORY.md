@@ -93,6 +93,15 @@ safe direction). The ring used is reported as `DomainRating.ratingRadiusM`; `rad
 `count` stay in the payload as the requested width and the total within it. Earlier text
 here claimed a rating was "comparable across radii" — it was not, and that was the bug.
 
+*Distanceless POIs (follow-up fix).* A feature with no `distanceM` is within `radiusM`
+(the circle filter guarantees it) but can't be placed in an inner ring, so
+`partitionByRing` counts it only at the outer ring. When the rating ring is an inner one
+its count omitted those — a domain of 20 distanceless venues rated `none`. `classifyDomain`
+now takes `missingDistance` and, if placing every missing POI at the rating ring would
+change the bucket, falls back to rating at the outer ring (count complete there) and sets
+`countCapped` — the outer-ring rating is a hard lower bound. A single missing distance that
+can't swing the bucket leaves the 500 m rating alone.
+
 **Walking-ring ladder** — `WALKING_RADII_M = [250, 500, 1000]` m (`analysis/rings.ts`),
 ≈ 3 / 6 / 12 min walk. `ringsWithin(radiusM)` keeps the ladder entries `≤ radiusM` and
 always appends `radiusM` itself as the outer ring. Counts are **cumulative** (a POI at
