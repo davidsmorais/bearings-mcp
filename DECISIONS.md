@@ -355,3 +355,49 @@ misleading. The README and `AGENTS.md` were adjusted to drop the offline claim.
 README short instead, linked out); recapturing Open-Meteo live (rejected —
 non-deterministic and date-fragile); adding a `setupFiles` network tripwire to
 back an offline claim (out of scope for this slice, and the user's call).
+
+
+---
+
+## 2026-09-10 — Terminal classification for quota exhaustion in the retry loop
+
+**Decision:** A host `classifyStatus` verdict of `QUOTA_EXCEEDED` breaks the HTTP
+core retry loop immediately, instead of the raw 429 being retried to
+`maxAttempts`.
+
+**Why:** A Geoapify daily-quota 429 carries a quota message in the body, and
+`config.ts` already classifies it — but only inside `mapHttpError`, after the
+retry loop had exhausted its budget. Six domains fanning out meant eighteen
+requests and up to ~16 s of backoff for an answer the first response already
+gave. A daily quota does not recover within a backoff window, so retrying it is
+pure waste.
+
+**Alternatives considered:** treating any `classifyStatus` hit as terminal
+(rejected — over-broad; a classified 401 is already terminal via the status
+check, and other classifications may be transient); a separate non-retryable
+status set (rejected — the quota case is a body check, not a status check, so it
+has to run where the body is in scope).
+
+---
+
+## 2026-09-10 — Neighbourhood rating is read at a fixed 500 m ring
+
+**Decision:** `classifyDomain` rates each domain from the ring at
+`CALIBRATION_RADIUS_M` (500 m) regardless of the request `radiusM` — or the
+request's outer ring when `radiusM` is below 500 m. The ring used is reported as
+`DomainRating.ratingRadiusM`.
+
+**Why:** `DENSITY_THRESHOLDS` is calibrated at exactly one radius, and MEMORY.md
+concedes the reference readings are hand-derived estimates never measured live.
+POI density genuinely falls off with radius and the fixed `limitPerCategory` cap
+makes it collapse — a nightlife sample saturated at 20 places rated `high` at
+500 m and `low` at 1000 m+ for the same neighbourhood, and a test asserted that
+degradation as correct. Pinning classification to the calibration point gives
+`rating` one stable meaning: venue density within a ~6-minute walk.
+
+**Alternatives considered:** scaling thresholds per radius (rejected — needs
+multi-radius calibration data that does not exist and cannot be produced without
+live Geoapify runs); returning `rating: null` when `radiusM > 500` and the count
+is capped (rejected — empties the flagship tool's headline field for a common
+input and pushes a null onto every caller). `radiusM` stays unrestricted; it is
+now a sample-width and evidence knob, not a rating input.
