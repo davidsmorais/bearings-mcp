@@ -1,4 +1,20 @@
+import { ToolErrorCode } from "@bearings/shared";
+
 const RETRYABLE_STATUS_CODES = new Set([408, 429]);
+
+/**
+ * A host-specific `classifyStatus` verdict that must stop the retry loop even though the
+ * raw status (a 429) is otherwise retryable. Only `QUOTA_EXCEEDED`: a daily quota does not
+ * recover within a backoff window, so retrying it burns the whole retry budget — and, when
+ * six domains fan out, eighteen requests — for an answer the first response already gave.
+ *
+ * Deliberately narrow. A classified 401 is already terminal because `isRetryableStatus(401)`
+ * is `false`; `QUOTA_EXCEEDED` is the one verdict the status check alone gets wrong. Widening
+ * this set silently stops retrying conditions that do recover.
+ */
+export function isTerminalClassification(code: ToolErrorCode | undefined): boolean {
+  return code === ToolErrorCode.QUOTA_EXCEEDED;
+}
 
 export interface RetryContext {
   readonly didTimeout: boolean;
